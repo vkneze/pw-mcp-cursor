@@ -8,7 +8,7 @@ import { BasePage, step } from '../pages/BasePage';
 import { assertVisible } from "../helpers/assertions";
 import { home } from "../data/home";
 import { SELECTORS } from "../constants/selectors";
-import { addFirstNFromCards } from "../helpers/cart-helpers";
+import { addFirstNFromCards } from "../helpers/product-card-helpers";
 
 export class HomePage extends BasePage {
   readonly page: Page;

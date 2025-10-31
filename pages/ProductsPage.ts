@@ -8,7 +8,7 @@ import { BasePage, step } from "./BasePage";
 import { products } from "../data/products";
 import { assertVisible } from "../helpers/assertions";
 import { dismissAnyModalIfVisible } from "../helpers/modals";
-import { addFirstNFromCards } from "../helpers/cart-helpers";
+import { addFirstNFromCards } from "../helpers/product-card-helpers";
 import { COMMON, PRODUCT, SEARCH as SEARCH_SEL } from "../constants/selectors";
 import { createPartialMatchRegex } from "../utils/strings";
 
