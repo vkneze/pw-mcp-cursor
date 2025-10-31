@@ -1,0 +1,2 @@
+STEP: Open the AutomationExercise home page
+STEP: Assert that header contains all expected navigation links

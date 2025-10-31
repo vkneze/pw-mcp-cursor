@@ -1,0 +1,9 @@
+STEP: Open the AutomationExercise home page
+STEP: Filter products by brand from the left menu
+STEP: Assert that at least one product card is visible in the product grid
+STEP: Assert only the specified brand appears in results
+STEP: Assert only these brands appear in results: Polo
+STEP: Filter products by brand from the left menu
+STEP: Assert that at least one product card is visible in the product grid
+STEP: Assert only the specified brand appears in results
+STEP: Assert only these brands appear in results: H&M
