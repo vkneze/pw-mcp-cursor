@@ -30,22 +30,47 @@ jobs:
     - name: Run all tests
       run: npx playwright test --workers=2
       continue-on-error: true
+      env:
+        CI: true
+
+    - name: List generated files (debug)
+      if: always()
+      run: |
+        echo "=== Test results ==="
+        ls -la test-results/ 2>/dev/null || echo "No test-results directory"
+        echo "=== Playwright report ==="
+        ls -la playwright-report/ 2>/dev/null || echo "No playwright-report directory"
+        echo "=== Allure results ==="
+        ls -la allure-results/ 2>/dev/null || echo "No allure-results directory"
 
     - name: Generate Allure Report
       if: always()
       run: |
         npm install -g allure-commandline
-        allure generate allure-results --clean -o allure-report
+        allure generate allure-results --clean -o allure-report || echo "Failed to generate Allure report"
 
-    - name: Upload test results
+    - name: Upload Playwright Report
       uses: actions/upload-artifact@v4
-      if: always()
+      if: ${{ !cancelled() && hashFiles('playwright-report/**') != '' }}
+      with:
+        name: nightly-playwright-report
+        path: playwright-report/
+        retention-days: 7
+
+    - name: Upload Allure Report
+      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && hashFiles('allure-report/**') != '' }}
+      with:
+        name: nightly-allure-report
+        path: allure-report/
+        retention-days: 7
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && hashFiles('test-results/**') != '' }}
       with:
         name: nightly-test-results
-        path: |
-          playwright-report/
-          allure-report/
-          test-results/
+        path: test-results/
         retention-days: 7
 
     - name: Notify on failure

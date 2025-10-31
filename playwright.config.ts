@@ -44,6 +44,7 @@ export default defineConfig({
   // 🧾 Reporters
   reporter: [
     ['list'],
+    ['html', { open: 'never' }],  // Generate HTML report (don't auto-open in CI)
     ['allure-playwright'],
   ],
 

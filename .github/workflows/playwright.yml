@@ -36,20 +36,40 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test --project=${{ matrix.project }}
       continue-on-error: true
+      env:
+        CI: true
 
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
+    - name: List generated files (debug)
       if: always()
+      run: |
+        echo "=== Workspace contents ==="
+        ls -la
+        echo "=== Test results ==="
+        ls -la test-results/ 2>/dev/null || echo "No test-results directory"
+        echo "=== Playwright report ==="
+        ls -la playwright-report/ 2>/dev/null || echo "No playwright-report directory"
+        echo "=== Allure results ==="
+        ls -la allure-results/ 2>/dev/null || echo "No allure-results directory"
+
+    - name: Upload Playwright Report
+      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && hashFiles('playwright-report/**') != '' }}
       with:
         name: playwright-report-${{ matrix.project }}
-        path: |
-          playwright-report/
-          test-results/
+        path: playwright-report/
         retention-days: 30
 
-    - name: Upload Allure results
+    - name: Upload Test Results
       uses: actions/upload-artifact@v4
-      if: always()
+      if: ${{ !cancelled() && hashFiles('test-results/**') != '' }}
+      with:
+        name: test-results-${{ matrix.project }}
+        path: test-results/
+        retention-days: 30
+
+    - name: Upload Allure Results
+      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && hashFiles('allure-results/**') != '' }}
       with:
         name: allure-results-${{ matrix.project }}
         path: allure-results/
@@ -67,27 +87,62 @@ jobs:
 
     - name: Download all Allure results
       uses: actions/download-artifact@v4
+      continue-on-error: true
       with:
-        path: allure-results
+        path: allure-results-download
+        pattern: allure-results-*
+
+    - name: Check if Allure results exist
+      id: check-allure
+      run: |
+        if [ -d "allure-results-download" ] && [ "$(find allure-results-download -name '*.json' -type f | wc -l)" -gt 0 ]; then
+          echo "has_results=true" >> $GITHUB_OUTPUT
+          echo "✅ Found Allure results"
+          find allure-results-download -type f -name "*.json" | head -5
+        else
+          echo "has_results=false" >> $GITHUB_OUTPUT
+          echo "⚠️ No Allure results found"
+        fi
+
+    - name: Merge Allure results from all browsers
+      if: steps.check-allure.outputs.has_results == 'true'
+      run: |
+        mkdir -p allure-results
+        find allure-results-download -type f \( -name "*.json" -o -name "*.txt" -o -name "*.png" -o -name "*.xml" \) -exec cp {} allure-results/ \;
+        echo "Merged results:"
+        ls -la allure-results/ | head -10
 
     - name: Get Allure history
+      if: steps.check-allure.outputs.has_results == 'true'
       uses: actions/checkout@v4
-      if: always()
       continue-on-error: true
       with:
         ref: gh-pages
         path: gh-pages
 
     - name: Generate Allure Report
+      if: steps.check-allure.outputs.has_results == 'true'
       uses: simple-elf/allure-report-action@master
-      if: always()
       with:
         allure_results: allure-results
         allure_history: allure-history
         keep_reports: 20
 
+    - name: Check if report was generated
+      if: steps.check-allure.outputs.has_results == 'true'
+      id: check-report
+      run: |
+        if [ -d "allure-history" ] && [ -f "allure-history/index.html" ]; then
+          echo "has_report=true" >> $GITHUB_OUTPUT
+          echo "✅ Allure report generated successfully"
+          ls -la allure-history/
+        else
+          echo "has_report=false" >> $GITHUB_OUTPUT
+          echo "⚠️ Allure report was not generated"
+        fi
+
     - name: Deploy report to GitHub Pages
-      if: always()
+      if: steps.check-report.outputs.has_report == 'true'
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
