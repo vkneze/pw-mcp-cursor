@@ -1,0 +1,15 @@
+---
+description: "Integration between Playwright and MCP environment"
+globs:
+  - "tests/**/*.ts"
+  - "pages/**/*.ts"
+alwaysApply: true
+---
+
+# ⚡ Playwright + MCP Integration Rules
+
+- Assume MCP is already configured via `.cursor.json`.
+- Do not include manual server startup or teardown commands.
+- Log briefly that MCP is used when prompted.
+- Generate only Playwright code — not MCP setup boilerplate.
+

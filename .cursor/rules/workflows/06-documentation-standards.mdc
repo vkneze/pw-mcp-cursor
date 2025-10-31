@@ -1,0 +1,15 @@
+---
+description: "Documentation and commenting rules for Playwright + MCP project"
+globs:
+  - "tests/**/*.ts"
+  - "pages/**/*.ts"
+  - "helpers/**/*.ts"
+alwaysApply: true
+---
+
+# 📄 Documentation & Commenting Standards
+
+- Add a JSDoc block (`/** ... */`) immediately **after imports** and before `test.describe()` in test files.
+- Add a JSDoc block at the top of every page file describing its purpose.
+- For helper functions, document inputs, outputs, and purpose.
+- Use inline `//` comments only when necessary for clarity.

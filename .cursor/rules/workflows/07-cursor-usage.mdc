@@ -1,0 +1,15 @@
+---
+description: "How Cursor should behave in this project"
+globs:
+  - "**/*.ts"
+alwaysApply: true
+---
+
+# 🤖 Cursor Usage Rules
+
+- “Create a new page” → generate under `pages/`.
+- “Create a new test” → generate under `tests/`.
+- “Update a test/page” → modify the existing file.
+- When unsure, ask clarifying questions before generating code.
+- When creating from scratch, update an existing file instead of creating a new one.
+- All flaky tests **must** be tagged `@flaky`.

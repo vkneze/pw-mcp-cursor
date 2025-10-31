@@ -1,0 +1,179 @@
+/**
+ * Home page object:
+ * Navigation, header assertions, category/brand filtering,
+ * product visibility checks, and add-to-cart helpers.
+ */
+import { Page, Locator } from "@playwright/test";
+import { BasePage, step } from '../pages/BasePage';
+import {
+  assertVisible,
+} from "../helpers/assertions";
+import { assertCardsContainOnlyBrands } from "../helpers/assertions-extras";
+import { home } from "../data/home";
+import { SELECTORS } from "../helpers/selectors";
+import { addFirstNFromCards } from "../helpers/cart-helpers";
+
+export class HomePage extends BasePage {
+  readonly page: Page;
+
+  // Header / Branding
+  readonly mainHeader: Locator;
+
+  // Sections
+  readonly subscriptionText: Locator;
+
+  // Product grid
+  readonly productCards: Locator;
+  readonly productNameInCardSelector: string;
+  readonly addToCartInCardSelector: string;
+
+  // Left menu
+  readonly categoriesText: Locator;
+  readonly brandsText: Locator;
+  readonly headerCartLink: Locator;
+  readonly panelsSelector: string;
+  readonly panelTitleLinkSelector: string;
+  readonly panelCollapseSelector: string;
+  readonly brandsLinksSelector: string;
+
+  constructor(page: Page) {
+    super(page);
+    this.page = page;
+
+    this.mainHeader = page.locator('#header');
+    this.subscriptionText = page.getByText('Subscription', { exact: false });
+
+    this.productCards = page.locator(SELECTORS.FEATURES_ITEMS_CARD);
+    this.productNameInCardSelector = SELECTORS.PRODUCT_NAME_IN_CARD;
+    this.addToCartInCardSelector = 'a.add-to-cart';
+
+    this.categoriesText = page.getByText('Category', { exact: false });
+    this.brandsText = page.getByText('Brands', { exact: false });
+    this.headerCartLink = this.mainHeader.getByRole('link', { name: /Cart/i });
+    this.panelsSelector = SELECTORS.PANELS;
+    this.panelTitleLinkSelector = SELECTORS.PANEL_TITLE_LINK;
+    this.panelCollapseSelector = SELECTORS.PANEL_COLLAPSE;
+    this.brandsLinksSelector = SELECTORS.BRANDS_LINKS;
+  }
+
+  @step("Open the AutomationExercise home page")
+  async goto(): Promise<void> {
+    await super.goto(home.url);
+    await assertVisible(this.mainHeader);
+  }
+
+  @step("Validate the home page has loaded")
+  async assertLoaded(): Promise<void> {
+    await this.assertUrlContains(/automationexercise\.com/);
+    await this.assertTitleContains(home.homeTitleText);
+    await assertVisible(this.mainHeader);
+    await assertVisible(this.subscriptionText);
+  }
+
+  @step("Assert that header contains all expected navigation links")
+  async assertHeaderContains(): Promise<void> {
+    await assertVisible(this.mainHeader);
+    const linkNames = [
+      'Home', 'Products', 'Cart', 'Signup / Login', 'Test Cases',
+      'API Testing', 'Video Tutorials', 'Contact us'
+    ];
+    for (const linkName of linkNames) {
+      await assertVisible(
+        this.mainHeader.getByRole("link", { name: new RegExp(linkName, "i") })
+      );
+    }
+  }
+
+  @step("Open a category from the left menu. Optionally click a child sub-category.")
+  async openCategory(parentCategory: string, childCategory?: string): Promise<void> {
+    await assertVisible(this.categoriesText);
+
+    // Find the specific panel that contains the desired parent category (word-boundary match)
+    const categoryPanel = this.page
+      .locator(this.panelsSelector)
+      .filter({ has: this.page.locator(this.panelTitleLinkSelector, { hasText: this.nameRegex(parentCategory) }) });
+
+    const parentLink = categoryPanel.locator(this.panelTitleLinkSelector, { hasText: this.nameRegex(parentCategory) });
+    await assertVisible(parentLink);
+    await parentLink.click();
+
+    // Wait for the collapse to expand within this panel
+    const collapse = categoryPanel.locator(this.panelCollapseSelector);
+    await collapse.waitFor({ state: 'visible' });
+
+    if (childCategory) {
+      const childLink = collapse.locator('a', { hasText: this.nameRegex(childCategory) });
+      await assertVisible(childLink);
+      await childLink.click();
+
+      // Category navigation triggers a page update; wait for URL and products
+      await this.page.waitForURL(/category_products/i, { timeout: 10000 }).catch(() => {});
+      await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+    }
+
+    await assertVisible(this.productCards.first());
+  }
+
+  @step("Filter products by brand from the left menu")
+  async filterByBrand(brandName: string): Promise<void> {
+    await assertVisible(this.brandsText);
+    await this.brandsText.scrollIntoViewIfNeeded().catch(() => {});
+
+    // Expand Brands panel if collapsed
+    const brandsPanel = this.page.locator(this.panelsSelector).filter({ has: this.page.locator(this.panelTitleLinkSelector, { hasText: /brands/i }) });
+    const collapse = brandsPanel.locator(this.panelCollapseSelector).first();
+    if (!(await collapse.isVisible().catch(() => false))) {
+      await brandsPanel.locator(this.panelTitleLinkSelector, { hasText: /brands/i }).first().click().catch(() => {});
+      await collapse.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    }
+
+    // Click brand link and wait for results
+    const brandLink = this.page.locator(`${this.brandsLinksSelector}:has-text("${brandName}")`).first();
+    await assertVisible(brandLink);
+    await brandLink.scrollIntoViewIfNeeded().catch(() => {});
+    await brandLink.click({ force: true });
+    await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+    await assertVisible(this.productCards.first());
+  }
+
+  @step("Assert that at least one product card is visible in the product grid")
+  async assertProductsVisible(): Promise<void> {
+    await assertVisible(this.productCards.first());
+  }
+
+  @step("Assert only the specified brand appears in results")
+  async assertOnlyBrandInResults(brandName: string): Promise<void> {
+    await this.assertOnlyBrandsInResults([brandName]);
+  }
+
+  @step((brands: string[]) => `Assert only these brands appear in results: ${brands.join(', ')}`)
+  async assertOnlyBrandsInResults(brandNames: string[]): Promise<void> {
+    await assertCardsContainOnlyBrands(this.productCards, brandNames);
+  }
+
+  @step("Add first N products to cart")
+  async addFirstNProductsToCart(n: number): Promise<string[]> {
+    return await addFirstNFromCards(
+      this.page,
+      this.productCards,
+      this.productNameInCardSelector,
+      [this.addToCartInCardSelector],
+      n,
+    );
+  }
+
+  /**
+   * Filter by brand and add the first N products to cart, returning their names.
+   */
+  @step((brand: string, n: number) => `Add first ${n} products for brand "${brand}"`)
+  async addFirstNProductsByBrand(brandName: string, n: number): Promise<string[]> {
+    await this.filterByBrand(brandName);
+    await this.assertProductsVisible();
+    return await this.addFirstNProductsToCart(n);
+  }
+
+  @step("Open cart from header")
+  async openCartFromHeader(): Promise<void> {
+    await this.headerCartLink.click();
+  }
+}

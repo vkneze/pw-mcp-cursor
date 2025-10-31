@@ -1,0 +1,19 @@
+---
+description: "General TypeScript and project layout conventions"
+globs:
+  - "**/*.ts"
+alwaysApply: true
+---
+
+# 🧱 General Structure Rules
+
+- Generate all code in **TypeScript**.
+- Follow the **Page Object Pattern**.
+- Organize project as:
+  - `tests/` → Playwright test specs
+  - `pages/` → Page objects
+  - `data/` → Test data files
+  - `helpers/` → Shared functions
+- Use `@playwright/test` for imports.
+- Use clear, descriptive file and class names.
+- Follow Playwright naming conventions.

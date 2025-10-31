@@ -1,0 +1,14 @@
+---
+description: "Project organization, file placement, and data separation rules"
+globs:
+  - "**/*.ts"
+alwaysApply: true
+---
+
+# 🗂️ Project Organization Rules
+
+- Avoid duplicate or overlapping test files.
+- Keep data values out of test and page files — place them in `data/`.
+- Keep assertions reusable in `helpers/assertions.ts`.
+- Ensure each feature has its own page object and test file.
+

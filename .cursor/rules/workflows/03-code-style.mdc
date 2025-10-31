@@ -1,0 +1,23 @@
+---
+description: "Code style, locator strategy, and Playwright syntax rules"
+globs:
+  - "tests/**/*.ts"
+  - "pages/**/*.ts"
+  - "helpers/**/*.ts"
+alwaysApply: true
+---
+
+# 🎨 Code Style Rules
+
+- Use `async/await` for all Playwright actions.
+- Prefer `const` unless reassignment is required.
+- Always use `expect()` for validation.
+- Use ID locators before CSS selectors.
+- Prefer the most stable locators:
+  1. ID (`#id`)
+  2. `[data-testid]`
+  3. ARIA role + name
+  4. Visible text
+  5. Attribute selector
+  6. CSS class
+  7. XPath or positional

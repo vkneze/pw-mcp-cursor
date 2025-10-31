@@ -1,0 +1,16 @@
+---
+description: "Playwright test authoring and structure rules"
+globs:
+  - "tests/**/*.ts"
+alwaysApply: true
+---
+
+# 🧪 Test Best Practices
+
+- Follow the **Arrange → Act → Assert** pattern.
+- Use `test.describe()` for grouping related tests.
+- Use `beforeEach()` for common setup (navigation, login, etc.).
+- Each test should verify one specific behavior.
+- Do not put locators directly to tests or functions. Put them in page constructor.
+- Flaky tests must include a `@flaky` tag before test name and a comment explaining why test is flaky.
+
