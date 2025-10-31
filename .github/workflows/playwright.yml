@@ -7,6 +7,10 @@ on:
     branches: [ main, master, develop ]
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
+permissions:
+  contents: write  # Required for gh-pages deployment
+  actions: read    # Required for downloading artifacts
+
 jobs:
   test:
     timeout-minutes: 60
@@ -80,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     if: always()
+    permissions:
+      contents: write  # Required to push to gh-pages branch
     
     steps:
     - name: Checkout code

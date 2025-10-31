@@ -99,33 +99,45 @@ allure generate allure-results -o allure-report
 
 ### GitHub Pages Not Deploying
 
-**Error:** `error: src refspec gh-pages does not match any`
+**Error 1:** `error: src refspec gh-pages does not match any`
+- **Cause:** Allure report wasn't generated
+- **Fix:** Added `force_orphan: true` to create branch on first deployment
 
-This means the Allure report wasn't generated, so there's nothing to deploy.
+**Error 2:** `remote: Permission denied to github-actions[bot]` (403 error)
+- **Cause:** Workflow lacks permission to push to repository
+- **Fix:** Added `permissions: contents: write` to workflow
 
 **Root Causes:**
 1. No Allure results to process (tests didn't generate them)
 2. Allure reporter not configured
 3. Artifacts download failed
+4. Missing workflow permissions ⭐ Most common
 
 **Fixed in Latest Version:**
 - Workflow now checks if Allure results exist before deploying
 - Merges results from all browser runs
 - Verifies report was generated before pushing to gh-pages
 - Gracefully skips deployment if nothing to deploy
+- Uses `force_orphan: true` to create gh-pages on first run
+- Includes proper permissions at workflow and job level
 
 **Checklist:**
 
-1. **Enable GitHub Pages**
+1. **✅ Workflow permissions are now included in the workflow file itself**
+   - No manual configuration needed!
+   - The workflow has `permissions: contents: write`
+
+2. **Optional: Verify repository settings** (only if still failing)
+   - Settings → Actions → General
+   - Workflow permissions: **Read and write permissions** (should be default)
+   - Or keep "Read repository contents" if you prefer job-level permissions
+
+3. **Enable GitHub Pages**
    - Settings → Pages
    - Source: Deploy from branch `gh-pages`
+   - Branch will be created automatically on first successful deployment
 
-2. **Set Workflow Permissions**
-   - Settings → Actions → General
-   - Workflow permissions: **Read and write permissions**
-   - Enable: **Allow GitHub Actions to create and approve pull requests**
-
-3. **Verify Allure reporter is configured**
+4. **Verify Allure reporter is configured**
    ```typescript
    // playwright.config.ts
    reporter: [
@@ -133,13 +145,13 @@ This means the Allure report wasn't generated, so there's nothing to deploy.
    ],
    ```
 
-4. **Check workflow steps**
+5. **Check workflow steps**
    - "Check if Allure results exist" → Should show "✅ Found Allure results"
    - "Generate Allure Report" → Should run without errors
-   - "Check if report was generated" → Should show "✅ Allure report generated"
+   - "Debug - Check outputs" → Should show `has_results=true` and `has_report=true`
    - "Deploy report to GitHub Pages" → Only runs if previous checks pass
 
-5. **Manual verification locally**
+6. **Manual verification locally**
    ```bash
    npx playwright test
    ls -la allure-results/  # Should have *.json files
