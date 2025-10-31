@@ -6,7 +6,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { BasePage, step } from '../pages/BasePage';
 import { paths } from '../data/paths';
-import { assertVisible } from '../helpers/assertions';
 import { CART, SELECTORS as SELECT } from '../constants/selectors';
 
 export class CartPage extends BasePage {
@@ -43,6 +42,10 @@ export class CartPage extends BasePage {
   // Selector constants for row-scoped queries
   readonly deleteButtonSelector: string;
   readonly xDeleteLinkName: RegExp;
+  
+  // Payment form selectors (used in constructor and findReplacementPage)
+  private readonly payButtonSelector = '[data-qa="pay-button"]';
+  private readonly nameOnCardSelector = '[data-qa="name-on-card"]';
 
   constructor(page: Page) {
     super(page);
@@ -72,12 +75,12 @@ export class CartPage extends BasePage {
     this.placeOrderLink = page.getByRole('link', { name: /place order/i });
     this.placeOrderButton = page.getByRole('button', { name: /place order/i });
 
-    this.nameOnCardInput = page.locator('[data-qa="name-on-card"]');
+    this.nameOnCardInput = page.locator(this.nameOnCardSelector);
     this.cardNumberInput = page.locator('[data-qa="card-number"]');
     this.cvcInput = page.locator('[data-qa="cvc"]');
     this.expiryMonthInput = page.locator('[data-qa="expiry-month"]');
     this.expiryYearInput = page.locator('[data-qa="expiry-year"]');
-    this.payButton = page.locator('[data-qa="pay-button"]');
+    this.payButton = page.locator(this.payButtonSelector);
 
     // Checkout login requirement
     this.loginRequiredText = page.getByText(/register\s*\/\s*login|login is required|please login|account to proceed/i);
@@ -105,7 +108,10 @@ export class CartPage extends BasePage {
     const lastTick = (this as any)[key] ?? -1;
     if (ticks > lastTick) {
       (this as any)[key] = ticks;
-      await this.page.goto(paths.viewCart, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      // Periodic refresh - failure is acceptable (page might be closed or navigating)
+      await this.page.goto(paths.viewCart, { waitUntil: 'domcontentloaded' }).catch((err) => {
+        // Navigation might fail if page is closed or already navigating
+      });
       await this.ensureCartPageReady();
     }
   }
@@ -136,16 +142,18 @@ export class CartPage extends BasePage {
       // Heuristic by presence of controls
       for (let i = pages.length - 1; i >= 0; i--) {
         const p = pages[i];
-        try {
-          const hasPayment = (await p.locator('[data-qa="pay-button"]').count().catch(() => 0)) > 0
-            || (await p.locator('[data-qa="name-on-card"]').count().catch(() => 0)) > 0;
-          if (hasPayment) return p;
-          const hasPlaceOrder = (await p.getByRole('link', { name: /place order/i }).count().catch(() => 0)) > 0
-            || (await p.getByRole('button', { name: /place order/i }).count().catch(() => 0)) > 0;
-          if (hasPlaceOrder) return p;
-        } catch {}
+        // Check for payment form elements - page might close during inspection
+        const hasPayment = (await this.safeCount(p.locator(this.payButtonSelector))) > 0
+          || (await this.safeCount(p.locator(this.nameOnCardSelector))) > 0;
+        if (hasPayment) return p;
+        
+        const hasPlaceOrder = (await this.safeCount(p.getByRole('link', { name: /place order/i }))) > 0
+          || (await this.safeCount(p.getByRole('button', { name: /place order/i }))) > 0;
+        if (hasPlaceOrder) return p;
       }
-    } catch {}
+    } catch (err) {
+      console.log('[WARN] Error searching for payment/checkout page:', (err as Error).message);
+    }
     return null;
   }
 
@@ -162,13 +170,15 @@ export class CartPage extends BasePage {
         const count = await this.getStableVisibleItemCount();
         if (count === expected) {
           stableHits++;
-          if (stableHits >= requiredStableHits) return true;
-        } else {
-          stableHits = 0;
-        }
-      } catch {
-        await this.ensureCartPageReady();
+        if (stableHits >= requiredStableHits) return true;
+      } else {
+        stableHits = 0;
       }
+    } catch (err) {
+      // Count might fail if page is navigating - re-ensure cart is ready
+      console.log('[INFO] Cart count failed, re-ensuring page ready:', (err as Error).message);
+      await this.ensureCartPageReady();
+    }
       await this.sleep(150);
       await this.periodicRefreshCartIfDue(start);
     }
@@ -182,7 +192,9 @@ export class CartPage extends BasePage {
       const visibleCount = await this.visibleProductRows.count();
       if (visibleCount > 0) return visibleCount;
       return await this.productRows.count();
-    } catch {
+    } catch (err) {
+      // Page might be closed or navigating - return 0
+      console.log('[INFO] Could not get visible item count:', (err as Error).message);
       return 0;
     }
   }
@@ -211,8 +223,8 @@ export class CartPage extends BasePage {
     const table = this.cartTable;
     const emptyMsg = this.emptyCartMessage;
     return await Promise.race([
-      table.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true).catch(() => false),
-      emptyMsg.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true).catch(() => false),
+      this.safeWaitFor(table, { state: 'visible', timeout: timeoutMs }),
+      this.safeWaitFor(emptyMsg, { state: 'visible', timeout: timeoutMs }),
     ]);
   }
 
@@ -226,13 +238,13 @@ export class CartPage extends BasePage {
         if (!/\/view_cart/i.test(this.page.url())) {
           await this.page.goto(paths.viewCart, { waitUntil: 'domcontentloaded' });
         }
-      } catch {
-        // Swallow transient navigation aborts and retry
+      } catch (err) {
+        // Navigation might be aborted - will retry in next iteration
+        console.log(`[INFO] Cart navigation attempt ${attempt + 1} failed:`, (err as Error).message);
       }
 
-      try {
-        await this.page.waitForLoadState('domcontentloaded');
-      } catch {}
+      // Wait for page to settle before checking cart readiness
+      await this.safeWaitForLoadState('domcontentloaded');
 
       const ok = await this.waitForCartReadySignals(8000);
       if (ok) return;
@@ -279,7 +291,9 @@ export class CartPage extends BasePage {
     let count: number;
     try {
       count = await this.visibleProductRows.count();
-    } catch {
+    } catch (err) {
+      // Count might fail if page is navigating - re-ensure and retry
+      console.log('[INFO] Initial count failed, re-ensuring cart ready:', (err as Error).message);
       await this.ensureCartPageReady();
       count = await this.visibleProductRows.count();
     }
@@ -303,7 +317,7 @@ export class CartPage extends BasePage {
           await deleteLink.first().click();
           await this.page.waitForLoadState('domcontentloaded');
           // Wait for the specific row to detach to ensure removal completed
-          await row.waitFor({ state: 'detached' }).catch(() => {});
+          await this.safeWaitFor(row, { state: 'detached' });
           // Wait until cart count decreases from beforeCount
           const start = Date.now();
           while (Date.now() - start < 5000) {
@@ -324,32 +338,32 @@ export class CartPage extends BasePage {
     const emptyMsg = this.emptyCartMessage;
 
     // Fast path: empty state already visible
-    if (await emptyMsg.isVisible().catch(() => false)) return;
+    if (await this.safeIsVisible(emptyMsg)) return;
 
     const maxIterations = 50;
     for (let i = 0; i < maxIterations; i++) {
       // If there are no product rows or no delete buttons, stop
-      const rowsCount = await this.productRows.count().catch(() => 0);
+      const rowsCount = await this.safeCount(this.productRows);
       if (rowsCount === 0) break;
 
       const deleteBtn = this.deleteButtons.first().or(this.xDeleteLinks.first());
       if (!(await deleteBtn.count())) break;
 
       const row = this.productRows.first();
-      // Try a normal click with force fallback
-      try { await deleteBtn.click({ force: true }); } catch {}
+      // Click to remove item - will fail if element detaches mid-click
+      await deleteBtn.click({ force: true });
 
       // Wait for the row to be removed and page to settle
-      await row.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
-      await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      await this.safeWaitFor(row, { state: 'detached', timeout: 5000 });
+      await this.safeWaitForLoadState('domcontentloaded');
 
       // If empty message visible now, we are done
-      if (await emptyMsg.isVisible().catch(() => false)) break;
+      if (await this.safeIsVisible(emptyMsg)) break;
     }
 
     // Final check
     const remaining = await this.getStableVisibleItemCount();
-    if (remaining > 0 && !(await emptyMsg.isVisible().catch(() => false))) {
+    if (remaining > 0 && !(await this.safeIsVisible(emptyMsg))) {
       throw new Error(`Cart not empty after removal. Remaining items: ${remaining}`);
     }
   }
@@ -363,7 +377,7 @@ export class CartPage extends BasePage {
     while (Date.now() < end) {
       const [count, msgVisible] = await Promise.all([
         this.getStableVisibleItemCount(),
-        emptyMsg.isVisible().catch(() => false),
+        this.safeIsVisible(emptyMsg),
       ]);
       if (msgVisible || count === 0) return;
       await this.sleep(150);
@@ -393,12 +407,14 @@ export class CartPage extends BasePage {
     await this.ensureCartPageReady();
     try {
       return await this.visibleProductRows.count();
-    } catch {
+    } catch (err) {
+      console.log('[INFO] Cart count failed, retrying:', (err as Error).message);
       if (this.page.isClosed()) return 0;
       await this.ensureCartPageReady();
       try {
         return await this.visibleProductRows.count();
-      } catch {
+      } catch (retryErr) {
+        console.log('[WARN] Cart count retry also failed:', (retryErr as Error).message);
         return 0;
       }
     }
@@ -422,18 +438,27 @@ export class CartPage extends BasePage {
     const firstRow = this.productRows.first();
     const deleteBtn = this.deleteButtons.first().or(this.xDeleteLinks.first());
     if (!(await deleteBtn.count())) return;
-    try {
-      await deleteBtn.click({ force: true });
-    } catch {}
-    // Fallback to DOM click if needed
-    try {
-      const handle = await deleteBtn.elementHandle();
+    
+    // Try force click first, fallback to DOM click if needed
+    const clicked = await this.safeClick(deleteBtn, { force: true });
+    
+    if (!clicked) {
+      // Fallback to DOM click
+      const handle = await deleteBtn.elementHandle().catch(() => null);
       if (handle) {
-        await this.page.evaluate((el) => (el as HTMLElement).click(), handle).catch(() => {});
+        await this.page.evaluate((el) => (el as HTMLElement).click(), handle);
       }
-    } catch {}
-    await firstRow.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
-    await this.waitForCountToEqual(Math.max(0, before - 1), 5000, 2).catch(() => {});
+    }
+    
+    // Wait for item removal - use safe wait with longer timeout
+    const detached = await this.safeWaitFor(firstRow, { state: 'detached', timeout: 10000 });
+    
+    // If row didn't detach, wait for count to change as fallback verification
+    if (!detached) {
+      await this.safeWaitForLoadState('domcontentloaded');
+    }
+    
+    await this.waitForCountToEqual(Math.max(0, before - 1), 8000, 2);
   }
 
   @step('Proceed to checkout from cart')
@@ -448,13 +473,16 @@ export class CartPage extends BasePage {
     }
     // Wait for one of the checkout outcomes: URL or login indicators
     const timeoutMs = 20000;
-    const urlPromise = this.page.waitForURL(/\/(checkout|login|signup)\b/i, { timeout: timeoutMs }).then(() => true).catch(() => false);
-    const headerPromise = this.loginOrSignupHeaderText.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true).catch(() => false);
-    const modalPromise = this.checkoutLoginModal.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true).catch(() => false);
-    const ctaPromise = this.registerLoginLink.waitFor({ state: 'visible', timeout: timeoutMs }).then(() => true).catch(() => false);
-    await Promise.race([urlPromise, headerPromise, modalPromise, ctaPromise]).catch(() => {});
+    const urlPromise = this.safeWaitForURL(/\/(checkout|login|signup)\b/i, { timeout: timeoutMs });
+    const headerPromise = this.safeWaitFor(this.loginOrSignupHeaderText, { state: 'visible', timeout: timeoutMs });
+    const modalPromise = this.safeWaitFor(this.checkoutLoginModal, { state: 'visible', timeout: timeoutMs });
+    const ctaPromise = this.safeWaitFor(this.registerLoginLink, { state: 'visible', timeout: timeoutMs });
+    // Wait for any checkout indicator - all inner promises handle errors, timeout is acceptable
+    await Promise.race([urlPromise, headerPromise, modalPromise, ctaPromise]).catch((err) => {
+      // All race conditions handled by inner promises, outer timeout is acceptable
+    });
     // Let network settle before next steps
-    await this.page.waitForLoadState('networkidle').catch(() => {});
+    await this.safeWaitForLoadState('networkidle');
   }
 
   @step('Place order with payment details')
@@ -465,13 +493,11 @@ export class CartPage extends BasePage {
     if (this.page.isClosed()) {
       // Attempt a single recovery by switching to the last open page in the context
       if (!_recovered) {
-        try {
-          const replacement = await this.findPaymentOrCheckoutPage();
-          if (replacement) {
-            const fresh = new CartPage(replacement);
-            return await fresh.placeOrder(params, true);
-          }
-        } catch {}
+        const replacement = await this.findPaymentOrCheckoutPage().catch(() => null);
+        if (replacement) {
+          const fresh = new CartPage(replacement);
+          return await fresh.placeOrder(params, true);
+        }
       }
       throw new Error('Cannot place order: page is already closed');
     }
@@ -481,14 +507,17 @@ export class CartPage extends BasePage {
     let triggerCount = 0;
     try {
       triggerCount = await placeOrderTrigger.count();
-    } catch {
-      triggerCount = 0; // page could be navigating; continue to field-visibility check
+    } catch (err) {
+      // Page could be navigating; continue to field-visibility check
+      console.log('[INFO] Could not count place order triggers:', (err as Error).message);
+      triggerCount = 0;
     }
     if (triggerCount > 0) {
-      try {
-        await placeOrderTrigger.first().click({ force: true });
-      } catch {}
-      await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      // Click to reveal payment form (optional - form might already be visible)
+      await placeOrderTrigger.first().click({ force: true }).catch(() => {
+        // Click failed - payment form might already be visible, will verify below
+      });
+      await this.safeWaitForLoadState('domcontentloaded');
     }
 
     // If clicking caused a page replacement/closure, adopt the live page
@@ -503,9 +532,9 @@ export class CartPage extends BasePage {
 
     // Wait briefly for payment fields to appear
     const formVisible = await Promise.race([
-      this.nameOnCardInput.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false),
-      this.cardNumberInput.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false),
-      this.payButton.waitFor({ state: 'visible', timeout: 8000 }).then(() => true).catch(() => false),
+      this.safeWaitFor(this.nameOnCardInput, { state: 'visible', timeout: 8000 }),
+      this.safeWaitFor(this.cardNumberInput, { state: 'visible', timeout: 8000 }),
+      this.safeWaitFor(this.payButton, { state: 'visible', timeout: 8000 }),
     ]);
 
     if (!formVisible) {
@@ -523,10 +552,8 @@ export class CartPage extends BasePage {
     const fillField = async (locator: Locator, value: string) => {
       const end = Date.now() + 4000;
       while (Date.now() < end) {
-        try {
-          await locator.fill(value);
-          return;
-        } catch {}
+        const filled = await this.safeFill(locator, value);
+        if (filled) return;
         await this.sleep(100);
       }
       await locator.fill(value); // final attempt to bubble proper error
@@ -555,10 +582,10 @@ export class CartPage extends BasePage {
       if (redirectedToAuth) return;
 
       const [headerVisible, modalVisible, inlineMsgVisible, regLinkCount] = await Promise.all([
-        this.loginOrSignupHeaderText.isVisible().catch(() => false),
-        this.checkoutLoginModal.isVisible().catch(() => false),
-        this.loginRequiredText.isVisible().catch(() => false),
-        this.registerLoginLink.count().catch(() => 0),
+        this.safeIsVisible(this.loginOrSignupHeaderText),
+        this.safeIsVisible(this.checkoutLoginModal),
+        this.safeIsVisible(this.loginRequiredText),
+        this.safeCount(this.registerLoginLink),
       ]);
 
       if (headerVisible || modalVisible || inlineMsgVisible) return;

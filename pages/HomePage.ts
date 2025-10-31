@@ -103,8 +103,8 @@ export class HomePage extends BasePage {
       await childLink.click();
       
       // Wait for category products page to load
-      await this.page.waitForURL(/category_products/i, { timeout: 10000 }).catch(() => {});
-      await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      await this.safeWaitForURL(/category_products/i, { timeout: 10000 });
+      await this.safeWaitForLoadState('domcontentloaded');
     }
 
     // Verify products are displayed
@@ -114,22 +114,23 @@ export class HomePage extends BasePage {
   @step("Filter products by brand from the left menu")
   async filterByBrand(brandName: string): Promise<void> {
     await assertVisible(this.brandsText);
-    await this.brandsText.scrollIntoViewIfNeeded().catch(() => {});
+    await this.safeScrollIntoView(this.brandsText);
 
     // Expand Brands panel if collapsed
     const brandsPanel = this.page.locator(this.panelsSelector).filter({ has: this.page.locator(this.panelTitleLinkSelector, { hasText: /brands/i }) });
     const collapse = brandsPanel.locator(this.panelCollapseSelector).first();
-    if (!(await collapse.isVisible().catch(() => false))) {
-      await brandsPanel.locator(this.panelTitleLinkSelector, { hasText: /brands/i }).first().click().catch(() => {});
-      await collapse.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    if (!(await this.safeIsVisible(collapse))) {
+      const brandTitleLink = brandsPanel.locator(this.panelTitleLinkSelector, { hasText: /brands/i }).first();
+      await this.safeClick(brandTitleLink);
+      await this.safeWaitFor(collapse, { state: 'visible', timeout: 5000 });
     }
 
     // Click brand link and wait for results
     const brandLink = this.page.locator(`${this.brandsLinksSelector}:has-text("${brandName}")`).first();
     await assertVisible(brandLink);
-    await brandLink.scrollIntoViewIfNeeded().catch(() => {});
+    await this.safeScrollIntoView(brandLink);
     await brandLink.click({ force: true });
-    await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+    await this.safeWaitForLoadState('domcontentloaded');
     await assertVisible(this.productCards.first());
   }
 
@@ -154,7 +155,7 @@ export class HomePage extends BasePage {
     const sample = Math.min(6, count);
     for (let i = 0; i < sample; i++) {
       const label = this.productCards.nth(i).getByText(/Brand\s*:/i).first();
-      const visible = await label.isVisible().catch(() => false);
+      const visible = await this.safeIsVisible(label);
       if (!visible) continue;
       const text = ((await label.textContent().catch(() => '')) || '').trim();
       if (!brandRegex.test(text)) {

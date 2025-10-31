@@ -119,11 +119,11 @@ export class AuthPage extends BasePage {
     await this.loginButton.first().click();
 
     const outcome = await Promise.race([
-      this.logoutLink.waitFor({ state: 'visible', timeout: 12000 }).then(() => 'success').catch(() => null),
-      this.loginErrorMsg.waitFor({ state: 'visible', timeout: 12000 }).then(() => 'error').catch(() => null),
+      this.safeWaitFor(this.logoutLink, { state: 'visible', timeout: 12000 }).then((success) => success ? 'success' : null),
+      this.safeWaitFor(this.loginErrorMsg, { state: 'visible', timeout: 12000 }).then((success) => success ? 'error' : null),
     ]);
 
-    if (outcome === 'error' || (await this.loginErrorMsg.isVisible().catch(() => false))) {
+    if (outcome === 'error' || (await this.safeIsVisible(this.loginErrorMsg))) {
       throw new Error('Incorrect email or password');
     }
 
@@ -177,7 +177,7 @@ export class AuthPage extends BasePage {
     if (await this.titleMrRadio.count()) {
       const radio = this.titleMrRadio.first();
       const label = this.titleMrLabel;
-      if (await label.count()) { await label.click({ force: true }).catch(() => {}); }
+      if (await label.count()) { await this.safeClick(label, { force: true }); }
       else { await radio.check({ force: true }).catch(() => {}); }
     }
 
@@ -223,8 +223,8 @@ export class AuthPage extends BasePage {
 
   @step('Continue after account created')
   async continueAfterAccountCreated(): Promise<void> {
-    await this.continueButton.click({ timeout: 5000 }).catch(() => {});
-    await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+    await this.safeClick(this.continueButton, { timeout: 5000 });
+    await this.safeWaitForLoadState('domcontentloaded');
   }
 
   @step('Assert logged in as user')
@@ -237,12 +237,12 @@ export class AuthPage extends BasePage {
     const logoutLink = this.header.getByRole('link', { name: /logout/i });
 
     // Check if login banner is visible; if not, try recovery steps
-    const bannerVisible = await loggedInBanner.isVisible().catch(() => false);
+    const bannerVisible = await this.safeIsVisible(loggedInBanner);
     if (!bannerVisible) {
       // Click continue if present
       if (await this.continueButton.count()) {
-        await this.continueButton.first().click().catch(() => {});
-        await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+        await this.safeClick(this.continueButton.first());
+        await this.safeWaitForLoadState('domcontentloaded');
       }
       // Navigate home if header disappeared
       if (!(await this.header.count())) {
@@ -251,7 +251,7 @@ export class AuthPage extends BasePage {
     }
 
     // Assert either banner or logout link is visible
-    const finalBannerVisible = await loggedInBanner.isVisible().catch(() => false);
+    const finalBannerVisible = await this.safeIsVisible(loggedInBanner);
     if (!finalBannerVisible) {
       await expect(logoutLink).toBeVisible({ timeout: 7000 });
     }
@@ -262,8 +262,8 @@ export class AuthPage extends BasePage {
     // Ensure header is visible; sometimes a modal Continue hides it
     const maybeContinue = this.continueButton;
     if (!(await this.header.count()) && (await maybeContinue.count())) {
-      await maybeContinue.first().click().catch(() => {});
-      await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      await this.safeClick(maybeContinue.first());
+      await this.safeWaitForLoadState('domcontentloaded');
     }
 
     if (!(await this.deleteAccountLink.count())) {
@@ -279,8 +279,8 @@ export class AuthPage extends BasePage {
     if (shouldContinue) {
       const continueBtn = this.continueButton;
       if (await this.continueButton.count()) {
-        await continueBtn.first().click().catch(() => {});
-        await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+        await this.safeClick(continueBtn.first());
+        await this.safeWaitForLoadState('domcontentloaded');
       }
     }
   }

@@ -2,7 +2,7 @@
  * Base page object: shared navigation, URL/title assertions,
  * and a `step` decorator to wrap page object methods in test.step logs.
  */
-import { test, Page } from '@playwright/test';
+import { test, Page, Locator } from '@playwright/test';
 import { assertTitleContains, assertUrlContains } from '../helpers/assertions';
 import { escapeForRegex } from '../utils/strings';
 
@@ -124,6 +124,93 @@ export class BasePage {
       });
     }
     await this.disableBannerInterception();
+  }
+
+  /**
+   * Safely wait for a locator to reach a certain state.
+   * Returns true if wait succeeded, false if timeout or error.
+   */
+  protected async safeWaitFor(locator: Locator, options?: { state?: 'visible' | 'attached' | 'detached' | 'hidden'; timeout?: number }): Promise<boolean> {
+    return await locator.waitFor(options).then(() => true).catch((err) => {
+      // Timeout or element not found is expected in safe operations
+      return false;
+    });
+  }
+
+  /**
+   * Safely attempt a click action.
+   * Returns true if click succeeded, false if error.
+   */
+  protected async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<boolean> {
+    return await locator.click(options).then(() => true).catch((err) => {
+      // Click failure is expected - element might be detached or not clickable
+      return false;
+    });
+  }
+
+  /**
+   * Safely attempt a fill action.
+   * Returns true if fill succeeded, false if error.
+   */
+  protected async safeFill(locator: Locator, value: string): Promise<boolean> {
+    return await locator.fill(value).then(() => true).catch((err) => {
+      // Fill failure is expected - element might not be ready or visible
+      return false;
+    });
+  }
+
+  /**
+   * Safely check if a locator is visible.
+   * Returns true if visible, false if not visible or error.
+   */
+  protected async safeIsVisible(locator: Locator): Promise<boolean> {
+    return await locator.isVisible().catch((err) => {
+      // Element not visible or page closed is expected
+      return false;
+    });
+  }
+
+  /**
+   * Safely get the count of matching elements.
+   * Returns count if successful, 0 if error.
+   */
+  protected async safeCount(locator: Locator): Promise<number> {
+    return await locator.count().catch((err) => {
+      // Count failure is expected - page might be closed or navigating
+      return 0;
+    });
+  }
+
+  /**
+   * Wait for page load state without throwing on timeout.
+   * Used for "fire-and-forget" wait operations where timeout is acceptable.
+   */
+  protected async safeWaitForLoadState(state: 'load' | 'domcontentloaded' | 'networkidle' = 'load'): Promise<void> {
+    await this.page.waitForLoadState(state).catch((err) => {
+      // Timeout is acceptable - page might already be in desired state or closed
+    });
+  }
+
+  /**
+   * Safely wait for URL to match a pattern.
+   * Returns true if URL matched, false if timeout or error.
+   */
+  protected async safeWaitForURL(url: string | RegExp | ((url: URL) => boolean), options?: { timeout?: number; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' | 'commit' }): Promise<boolean> {
+    return await this.page.waitForURL(url, options).then(() => true).catch((err) => {
+      // Timeout or navigation failure is expected in safe operations
+      return false;
+    });
+  }
+
+  /**
+   * Safely scroll element into view if needed.
+   * Returns true if scroll succeeded, false if error.
+   */
+  protected async safeScrollIntoView(locator: Locator, options?: { timeout?: number }): Promise<boolean> {
+    return await locator.scrollIntoViewIfNeeded(options).then(() => true).catch((err) => {
+      // Scroll failure is expected - element might not be scrollable or detached
+      return false;
+    });
   }
 }
 

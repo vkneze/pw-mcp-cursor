@@ -24,7 +24,9 @@ test.describe('Auth - Signup', () => {
       });
     } finally {
       // Ensure created account is deleted to keep environment clean
-      await authPage.deleteAccount().catch(() => {});
+      await authPage.deleteAccount().catch((err) => {
+        console.log('[WARN] Failed to delete account during cleanup:', err.message);
+      });
     }
   });
 });
