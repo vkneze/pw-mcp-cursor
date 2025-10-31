@@ -1,0 +1,54 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    # Run every night at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  test:
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    - name: Run all tests
+      run: npx playwright test --workers=2
+      continue-on-error: true
+
+    - name: Generate Allure Report
+      if: always()
+      run: |
+        npm install -g allure-commandline
+        allure generate allure-results --clean -o allure-report
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: nightly-test-results
+        path: |
+          playwright-report/
+          allure-report/
+          test-results/
+        retention-days: 7
+
+    - name: Notify on failure
+      if: failure()
+      run: echo "::warning::Nightly tests failed! Check the artifacts for details."
+
