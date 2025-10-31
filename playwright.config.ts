@@ -50,7 +50,7 @@ export default defineConfig({
   // Browser context options
   use: {
     baseURL: 'https://automationexercise.com',
-    headless: false,               // headless ensures more stable parallel execution
+    headless: true,               // headless ensures more stable parallel execution
     viewport: { width: 1280, height: 720 },
     actionTimeout: 20000,         // max time per action (click, fill, etc.)
     navigationTimeout: 60000,     // max time for page.goto() / navigation
@@ -66,14 +66,14 @@ export default defineConfig({
       name: 'Chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // {
-    //   name: 'Firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'WebKit',
-    //   use: { ...devices['Desktop Safari'] },
-    // }
+    {
+      name: 'Firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'WebKit',
+      use: { ...devices['Desktop Safari'] },
+    }
   ],
 
   // Directory for test artifacts
