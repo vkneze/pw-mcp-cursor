@@ -112,34 +112,42 @@ jobs:
         echo "Merged results:"
         ls -la allure-results/ | head -10
 
-    - name: Get Allure history
+    - name: Setup Node.js (for Allure)
       if: steps.check-allure.outputs.has_results == 'true'
-      uses: actions/checkout@v4
-      continue-on-error: true
+      uses: actions/setup-node@v4
       with:
-        ref: gh-pages
-        path: gh-pages
+        node-version: 18
 
     - name: Generate Allure Report
       if: steps.check-allure.outputs.has_results == 'true'
-      uses: simple-elf/allure-report-action@master
-      with:
-        allure_results: allure-results
-        allure_history: allure-history
-        keep_reports: 20
+      run: |
+        npm install -g allure-commandline
+        allure generate allure-results --clean -o allure-history
+        echo "✅ Allure report generated"
+        ls -la allure-history/ | head -10
 
     - name: Check if report was generated
       if: steps.check-allure.outputs.has_results == 'true'
       id: check-report
       run: |
+        echo "Checking for allure-history directory..."
         if [ -d "allure-history" ] && [ -f "allure-history/index.html" ]; then
           echo "has_report=true" >> $GITHUB_OUTPUT
           echo "✅ Allure report generated successfully"
+          echo "Contents:"
           ls -la allure-history/
         else
           echo "has_report=false" >> $GITHUB_OUTPUT
           echo "⚠️ Allure report was not generated"
+          echo "Current directory contents:"
+          ls -la
         fi
+
+    - name: Debug - Check outputs
+      if: always()
+      run: |
+        echo "check-allure.has_results = ${{ steps.check-allure.outputs.has_results }}"
+        echo "check-report.has_report = ${{ steps.check-report.outputs.has_report }}"
 
     - name: Deploy report to GitHub Pages
       if: steps.check-report.outputs.has_report == 'true'
@@ -148,4 +156,5 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_branch: gh-pages
         publish_dir: allure-history
+        force_orphan: true
 
