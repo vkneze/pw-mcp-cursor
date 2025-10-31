@@ -7,7 +7,7 @@ import { Page, Locator, expect } from '@playwright/test';
 import { BasePage, step } from '../pages/BasePage';
 import { paths } from '../data/paths';
 import { assertVisible } from '../helpers/assertions';
-import { CART, SELECTORS as SELECT } from '../helpers/selectors';
+import { CART, SELECTORS as SELECT } from '../constants/selectors';
 
 export class CartPage extends BasePage {
   readonly page: Page;

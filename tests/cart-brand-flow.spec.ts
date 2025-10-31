@@ -22,7 +22,7 @@ test.describe('Cart flow - add products by brand', () => {
   });
 
 
-    /**
+  /**
    * Order flow without login using brand filters (@order)
    * - Adds products by two brands (no logged user)
    * - Proceeds to checkout 

@@ -50,13 +50,5 @@ export async function assertVisible(target: Locator, options?: { page?: Page; ti
   }
 }
 
-/**
- * Purpose: Assert that a number is strictly greater than a threshold.
- * Inputs: actual - number under test; threshold - minimum expected value (exclusive).
- * Expected: actual > threshold; otherwise the test fails.
- */
-export async function assertGreaterThan(actual: number, threshold: number): Promise<void> {
-  expect(actual).toBeGreaterThan(threshold);
-}
 
 

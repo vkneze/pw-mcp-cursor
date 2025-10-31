@@ -3,14 +3,11 @@
  * Navigation, header assertions, category/brand filtering,
  * product visibility checks, and add-to-cart helpers.
  */
-import { Page, Locator } from "@playwright/test";
+import { Page, Locator, expect } from "@playwright/test";
 import { BasePage, step } from '../pages/BasePage';
-import {
-  assertVisible,
-} from "../helpers/assertions";
-import { assertCardsContainOnlyBrands } from "../helpers/assertions-extras";
+import { assertVisible } from "../helpers/assertions";
 import { home } from "../data/home";
-import { SELECTORS } from "../helpers/selectors";
+import { SELECTORS } from "../constants/selectors";
 import { addFirstNFromCards } from "../helpers/cart-helpers";
 
 export class HomePage extends BasePage {
@@ -88,29 +85,29 @@ export class HomePage extends BasePage {
   async openCategory(parentCategory: string, childCategory?: string): Promise<void> {
     await assertVisible(this.categoriesText);
 
-    // Find the specific panel that contains the desired parent category (word-boundary match)
-    const categoryPanel = this.page
-      .locator(this.panelsSelector)
-      .filter({ has: this.page.locator(this.panelTitleLinkSelector, { hasText: this.nameRegex(parentCategory) }) });
-
-    const parentLink = categoryPanel.locator(this.panelTitleLinkSelector, { hasText: this.nameRegex(parentCategory) });
+    // Click parent category link to expand
+    const parentLink = this.page
+      .locator('.panel-title')
+      .getByRole('link', { name: new RegExp(parentCategory, 'i') });
+    
     await assertVisible(parentLink);
     await parentLink.click();
 
-    // Wait for the collapse to expand within this panel
-    const collapse = categoryPanel.locator(this.panelCollapseSelector);
-    await collapse.waitFor({ state: 'visible' });
-
+    // If child category specified, click it
     if (childCategory) {
-      const childLink = collapse.locator('a', { hasText: this.nameRegex(childCategory) });
+      const childLink = this.page
+        .locator('.panel-collapse')
+        .getByRole('link', { name: new RegExp(childCategory, 'i') });
+      
       await assertVisible(childLink);
       await childLink.click();
-
-      // Category navigation triggers a page update; wait for URL and products
+      
+      // Wait for category products page to load
       await this.page.waitForURL(/category_products/i, { timeout: 10000 }).catch(() => {});
       await this.page.waitForLoadState('domcontentloaded').catch(() => {});
     }
 
+    // Verify products are displayed
     await assertVisible(this.productCards.first());
   }
 
@@ -148,7 +145,22 @@ export class HomePage extends BasePage {
 
   @step((brands: string[]) => `Assert only these brands appear in results: ${brands.join(', ')}`)
   async assertOnlyBrandsInResults(brandNames: string[]): Promise<void> {
-    await assertCardsContainOnlyBrands(this.productCards, brandNames);
+    const count = await this.productCards.count();
+    expect(count).toBeGreaterThan(0);
+    
+    const alternation = brandNames.map(b => b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const brandRegex = new RegExp(`Brand\\s*:\\s*(?:${alternation})`, 'i');
+
+    const sample = Math.min(6, count);
+    for (let i = 0; i < sample; i++) {
+      const label = this.productCards.nth(i).getByText(/Brand\s*:/i).first();
+      const visible = await label.isVisible().catch(() => false);
+      if (!visible) continue;
+      const text = ((await label.textContent().catch(() => '')) || '').trim();
+      if (!brandRegex.test(text)) {
+        throw new Error(`Unexpected brand for card #${i + 1}: "${text}" not in [${brandNames.join(', ')}]`);
+      }
+    }
   }
 
   @step("Add first N products to cart")

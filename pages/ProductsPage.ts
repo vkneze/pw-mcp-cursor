@@ -6,10 +6,11 @@
 import { Page, Locator } from "@playwright/test";
 import { BasePage, step } from "./BasePage";
 import { products } from "../data/products";
-import { assertVisible, assertGreaterThan } from "../helpers/assertions";
+import { assertVisible } from "../helpers/assertions";
 import { dismissAnyModalIfVisible } from "../helpers/modals";
 import { addFirstNFromCards } from "../helpers/cart-helpers";
-import { COMMON, PRODUCT, SEARCH as SEARCH_SEL } from "../helpers/selectors";
+import { COMMON, PRODUCT, SEARCH as SEARCH_SEL } from "../constants/selectors";
+import { createPartialMatchRegex } from "../utils/strings";
 
 export class ProductsPage extends BasePage {
   readonly page: Page;
@@ -55,7 +56,10 @@ export class ProductsPage extends BasePage {
     await this.setupAdGuards();
     await super.goto(products.url);
     await this.page.waitForLoadState('domcontentloaded');
-    await this.page.waitForLoadState('networkidle').catch(() => {});
+    // Network idle is optional - page might have long-running requests (ads, analytics)
+    await this.page.waitForLoadState('networkidle').catch((err) => {
+      console.log('[INFO] Network idle timeout - page may have background requests:', err.message);
+    });
     await assertVisible(this.productsHeader);
   }
 
@@ -68,11 +72,13 @@ export class ProductsPage extends BasePage {
     await assertVisible(this.searchButton);
     await this.searchButton.click();
 
-    // Wait for results (either header or first product card)
+    // Wait for search results - either header or products appear
     await Promise.race([
       this.searchedProductsHeader.waitFor({ state: 'visible', timeout: 7000 }),
       this.productCards.first().waitFor({ state: 'visible', timeout: 7000 }),
-    ]).catch(() => {});
+    ]).catch((err) => {
+      console.log('[WARN] Search results did not appear within timeout:', err.message);
+    });
   }
 
   @step(
@@ -82,7 +88,7 @@ export class ProductsPage extends BasePage {
     const count = await this.productCards.count();
     if (count === 0) throw new Error(`No products found in search results`);
 
-    const expectedNamePattern = new RegExp(this.escapeForRegex(expectedName), "i");
+    const expectedNamePattern = createPartialMatchRegex(expectedName);
     for (let i = 0; i < count; i++) {
       const actualProductName = (await this.productCards.nth(i).locator(PRODUCT.NAME_IN_CARD).innerText()).trim();
       if (!expectedNamePattern.test(actualProductName)) {

@@ -1,5 +1,6 @@
 {
   "devDependencies": {
+    "@faker-js/faker": "^10.1.0",
     "@playwright/mcp": "^0.0.41",
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.7.2",

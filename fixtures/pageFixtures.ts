@@ -4,8 +4,17 @@ import { HomePage } from "../pages/HomePage";
 import { ProductsPage } from "../pages/ProductsPage";
 import { CartPage } from "../pages/CartPage";
 import { AuthPage } from "../pages/AuthPage";
-import type { RuntimeUser } from "../helpers/actions";
 import { generateSignupUser } from "../data/auth";
+
+/**
+ * Runtime user credentials for test execution.
+ * Used by ephemeralUser fixture and tests that need user data.
+ */
+export type RuntimeUser = { 
+  email: string; 
+  password: string; 
+  name?: string;
+};
 
 /**
  * Extend Playwright's test with custom fixtures
@@ -96,9 +105,9 @@ export const test = base.extend<PagesFixtures & TestFixtures, WorkerFixtures>({
     } finally {
       // Cleanup: delete the account if it was created
       if (user && user.email) {
-        try {
-          await authPage.deleteAccount({ continueAfter: true });
-        } catch {}
+        await authPage.deleteAccount({ continueAfter: true }).catch(() => {
+          // Ignore deletion errors - user might not exist or page might be closed
+        });
       }
     }
   },

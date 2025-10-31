@@ -1,3 +1,5 @@
+import { generateUser } from '../utils/generators';
+
 export type SignupUser = {
   name: string;
   email: string;
@@ -12,22 +14,19 @@ export type SignupUser = {
   mobile: string;
 };
 
-export function generateSignupUser(seed?: string): SignupUser {
-  const ts = seed ?? String(Date.now());
-  const name = `TestUser_${ts}`;
-  const email = `test_${ts}@example.com`;
+/**
+ * Generate a random user for signup/registration tests.
+ * Uses generic user generator and adds application-specific fields.
+ * 
+ * @param seed - Optional seed for reproducible data generation (useful for debugging)
+ * @returns SignupUser object with all required fields
+ */
+export function generateSignupUser(seed?: string | number): SignupUser {
+  const user = generateUser(seed);
+  
   return {
-    name,
-    email,
-    password: 'P@ssw0rd!123',
-    firstName: 'Test',
-    lastName: 'User',
-    address1: '123 Test Street',
-    country: 'Canada',
-    state: 'ON',
-    city: 'Toronto',
-    zipcode: 'M5H 2N2',
-    mobile: '+1-416-555-1234',
+    ...user,
+    country: 'Canada', // Application-specific: form requires fixed country
   };
 }
 

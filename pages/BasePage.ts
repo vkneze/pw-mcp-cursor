@@ -1,9 +1,10 @@
 /**
- * Base page object: shared navigation, URL/title assertions, selector helpers,
+ * Base page object: shared navigation, URL/title assertions,
  * and a `step` decorator to wrap page object methods in test.step logs.
  */
-import { test, Page, Locator } from '@playwright/test';
+import { test, Page } from '@playwright/test';
 import { assertTitleContains, assertUrlContains } from '../helpers/assertions';
+import { escapeForRegex } from '../utils/strings';
 
 export class BasePage {
   readonly page: Page;
@@ -26,18 +27,18 @@ export class BasePage {
       } catch (err) {
         lastError = err;
         // Soft reset navigation context between attempts
-        try {
-          await this.page.waitForTimeout(300);
-          if (!/^\/?$/.test(path)) {
-            await this.page.goto('/', { waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {});
-          }
-        } catch {}
+        await this.page.waitForTimeout(300).catch(() => {
+          // Timeout may fail if page is closed - ignore
+        });
+        if (!/^\/?$/.test(path)) {
+          await this.page.goto('/', { waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {
+            // Fallback navigation may fail - will retry in next iteration
+          });
+        }
       }
     }
     throw lastError as Error;
   }
-
-  // Removed unused byId helper (no references in codebase)
 
   /**
    * Assert the current URL matches or contains the provided value.
@@ -56,40 +57,11 @@ export class BasePage {
   }
 
   /**
-   * Build a case-insensitive RegExp with word boundaries for an accessible name.
-   * Escapes special characters in the provided name.
+   * Escape a string for safe use in RegExp constructors.
+   * Used by child page classes for building search patterns.
    */
-  protected nameRegex(name: string): RegExp {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`\\b${escaped}\\b`, 'i');
-  }
-
-  /** Escape a string for safe use in RegExp constructors. */
   protected escapeForRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  /** Wait for DOMContentLoaded (and optionally network idle) to reduce flake. */
-  async waitForReady(options?: { networkIdle?: boolean; timeoutMs?: number }): Promise<void> {
-    const networkIdle = options?.networkIdle !== false; // default true
-    const timeout = options?.timeoutMs ?? 30000;
-    await this.page.waitForLoadState('domcontentloaded', { timeout }).catch(() => {});
-    if (networkIdle) {
-      await this.page.waitForLoadState('networkidle', { timeout }).catch(() => {});
-    }
-  }
-
-  /** Wait until any of the provided locators becomes visible. Returns the index or -1 on timeout. */
-  async waitForVisibleAny(locators: Locator[], timeoutMs: number = 12000): Promise<number> {
-    const end = Date.now() + timeoutMs;
-    while (Date.now() < end) {
-      for (let i = 0; i < locators.length; i++) {
-        const loc = locators[i];
-        if (await loc.isVisible().catch(() => false)) return i;
-      }
-      await this.page.waitForTimeout(100);
-    }
-    return -1;
+    return escapeForRegex(value);
   }
 
   /**
@@ -97,53 +69,58 @@ export class BasePage {
    * Disables pointer events for common ad containers and iframes.
    */
   async disableBannerInterception(): Promise<void> {
-    try {
-      await this.page.addStyleTag({
-        content: `
-          iframe[id*="google_ads"], iframe[src*="ads"],
-          #aswift_0, [id^="google_ads_iframe"], .advertisement,
-          ins.adsbygoogle, .adsbygoogle, .google-auto-placed {
-            pointer-events: none !important;
-            user-select: none !important;
-          }
-          ins.adsbygoogle, .adsbygoogle, .google-auto-placed {
-            display: none !important;
-            visibility: hidden !important;
-          }
-        `,
-      });
-    } catch {}
+    await this.page.addStyleTag({
+      content: `
+        iframe[id*="google_ads"], iframe[src*="ads"],
+        #aswift_0, [id^="google_ads_iframe"], .advertisement,
+        ins.adsbygoogle, .adsbygoogle, .google-auto-placed {
+          pointer-events: none !important;
+          user-select: none !important;
+        }
+        ins.adsbygoogle, .adsbygoogle, .google-auto-placed {
+          display: none !important;
+          visibility: hidden !important;
+        }
+      `,
+    }).catch((err) => {
+      console.log('[INFO] Could not inject ad-blocking styles:', err.message);
+    });
   }
 
   /** Configure network-level and CSS-level ad protections once per page. */
   async setupAdGuards(): Promise<void> {
     if (!this.adGuardsConfigured) {
       this.adGuardsConfigured = true;
-      try {
-        const adDomains = [
-          'googlesyndication.com',
-          'doubleclick.net',
-          'adservice.google.com',
-          'googleads.g.doubleclick.net',
-          'adnxs.com',
-          'taboola.com',
-          'outbrain.com',
-        ];
-        await this.page.route('**/*', (route) => {
-          const url = route.request().url();
-          try {
-            const host = new URL(url).hostname;
-            if (adDomains.some((d) => host.includes(d))) {
-              return route.abort();
-            }
-          } catch {}
-          return route.continue();
-        });
-      } catch {}
+      
+      // Setup network-level ad blocking
+      const adDomains = [
+        'googlesyndication.com',
+        'doubleclick.net',
+        'adservice.google.com',
+        'googleads.g.doubleclick.net',
+        'adnxs.com',
+        'taboola.com',
+        'outbrain.com',
+      ];
+      
+      await this.page.route('**/*', (route) => {
+        const url = route.request().url();
+        try {
+          const host = new URL(url).hostname;
+          if (adDomains.some((d) => host.includes(d))) {
+            return route.abort().catch(() => route.continue());
+          }
+        } catch (err) {
+          // Invalid URL, just continue
+        }
+        return route.continue();
+      }).catch((err) => {
+        console.log('[INFO] Could not setup network ad blocking:', err.message);
+      });
 
       // Re-apply CSS guards after each DOM content loaded
       this.page.on('domcontentloaded', async () => {
-        await this.disableBannerInterception().catch(() => {});
+        await this.disableBannerInterception();
       });
     }
     await this.disableBannerInterception();
