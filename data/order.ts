@@ -31,4 +31,11 @@ export const orderPayment: OrderPayment = {
   expiryYear: '2030',
 };
 
+/**
+ * Order-related text messages and labels.
+ */
+export const orderMessages = {
+  successMessage: 'Order Placed!',
+};
+
 

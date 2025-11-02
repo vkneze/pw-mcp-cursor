@@ -1,7 +1,6 @@
 import { test } from '../fixtures/pageFixtures';
 import { orderPayment } from '../data/order';
 import { filters } from '../data/filters';
-import { addFirstNProductsForBrands } from '../actions/ProductActions';
 import { checkoutAndPlaceOrder } from '../actions/CartActions';
 
 /**
@@ -30,7 +29,7 @@ test.describe('Cart flow - add products by brand', () => {
    */
   // @flaky: External site occasionally serves slow content or intermittent modals causing timing variance.
   test('(@flaky) should add products from Polo and H&M and verify in cart', async ({ authPage, homePage, cartPage }) => {
-    await addFirstNProductsForBrands(homePage, [filters.brandPolo.name, filters.brandHM.name], 2);
+    await homePage.addFirstNProductsPerBrand([filters.brandPolo.name, filters.brandHM.name], 2);
     await homePage.openCartFromHeader();
     await cartPage.waitForCartReady();
     
@@ -50,9 +49,7 @@ test.describe('Cart flow - add products by brand', () => {
    */
   // @flaky: Brand-filtered add-to-cart is unreliable on the website
   test('(@flaky) should login, add brand-filtered products, and place order successfully', async ({ authPage, homePage, cartPage, ephemeralUser }) => {
-    console.log(`[TEST] Project=${test.info().project.name} UsingUser=${ephemeralUser.email}`);
-    
-    await addFirstNProductsForBrands(homePage, [filters.brandPolo.name, filters.brandHM.name], 2);
+    await homePage.addFirstNProductsPerBrand([filters.brandPolo.name, filters.brandHM.name], 2);
     await homePage.openCartFromHeader();
     await cartPage.waitForCartReady();
     

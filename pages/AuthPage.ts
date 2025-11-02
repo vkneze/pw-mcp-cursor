@@ -1,5 +1,6 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { BasePage, step } from './BasePage';
+import { defaultDateOfBirth } from '../data/auth';
 
 /**
  * Auth page object:
@@ -100,6 +101,9 @@ export class AuthPage extends BasePage {
     this.deleteAccountLink = page.getByRole('link', { name: /delete account/i });
   }
 
+  /**
+   * Navigate to the login page and verify it loaded successfully.
+   */
   @step('Open the login page')
   async gotoLogin(): Promise<void> {
     // Login and signup often share the same page on this site.
@@ -111,6 +115,12 @@ export class AuthPage extends BasePage {
     await expect(this.loginOrSignupHeader).toBeVisible();
   }
 
+  /**
+   * Log in with an existing user account.
+   * @param email - User's email address
+   * @param password - User's password
+   * @throws {Error} If login fails with incorrect credentials
+   */
   @step('Login with existing user credentials')
   async loginExistingUser(email: string, password: string): Promise<void> {
     await expect(this.loginEmailInput.first()).toBeVisible();
@@ -130,12 +140,20 @@ export class AuthPage extends BasePage {
     await expect(this.logoutLink).toBeVisible();
   }
 
+  /**
+   * Navigate to the signup page and verify it loaded successfully.
+   */
   @step('Open the signup page')
   async gotoSignup(): Promise<void> {
     await this.goto('/signup');
     await expect(this.signupHeader).toBeVisible();
   }
 
+  /**
+   * Register a new user account with complete profile information.
+   * @param params - User registration details including personal and address information
+   * @param options - Optional configuration (e.g., autoContinue to proceed after account creation)
+   */
   @step('Create new user account')
   async signupNewUser(params: {
     name: string;
@@ -169,41 +187,40 @@ export class AuthPage extends BasePage {
     await this.signupNameInput.fill(name);
     await this.signupEmailInput.fill(email);
     await this.signupButton.click();
-
-    // Step 2: Enter Account Information
-    await expect(this.enterInfoHeader).toBeVisible();
-
-    // Title radio — simple best-effort (label click or radio check)
-    if (await this.titleMrRadio.count()) {
-      const radio = this.titleMrRadio.first();
-      const label = this.titleMrLabel;
-      if (await label.count()) { await this.safeClick(label, { force: true }); }
-      else { await radio.check({ force: true }).catch(() => {}); }
+    
+    // Step 2: Wait for navigation and check for duplicate email error
+    await this.page.waitForLoadState('networkidle');
+    
+    // Safety check: ensure no duplicate email error (should not happen with unique email generation)
+    const duplicateEmailError = this.page.getByText(/Email Address already exist/i);
+    if (await duplicateEmailError.isVisible().catch(() => false)) {
+      throw new Error(`Duplicate email detected: ${email}. Check email uniqueness generation.`);
     }
+
+    // Title radio
+    await this.safeClick(this.titleMrLabel, { force: true });
 
     // Password
-    if (await this.accountPasswordInput.count()) {
-      await this.accountPasswordInput.fill(password);
-    }
+    await this.accountPasswordInput.fill(password);
 
-    // Date of birth (optional) – skip if not present
-    if (await this.daySelect.count()) await this.daySelect.selectOption('1');
-    if (await this.monthSelect.count()) await this.monthSelect.selectOption('1');
-    if (await this.yearSelect.count()) await this.yearSelect.selectOption('1990');
+    // Date of birth
+    await this.daySelect.selectOption(defaultDateOfBirth.day);
+    await this.monthSelect.selectOption(defaultDateOfBirth.month);
+    await this.yearSelect.selectOption(defaultDateOfBirth.year);
 
     // Newsletter / offers boxes (optional) — best-effort, ignore failures
     if (await this.newsletterCheckbox.count()) await this.newsletterCheckbox.setChecked(true, { force: true }).catch(() => {});
     if (await this.offersCheckbox.count()) await this.offersCheckbox.setChecked(true, { force: true }).catch(() => {});
 
     // Address information
-    if (await this.firstNameInput.count()) await this.firstNameInput.fill(firstName);
-    if (await this.lastNameInput.count()) await this.lastNameInput.fill(lastName);
-    if (await this.address1Input.count()) await this.address1Input.fill(address1);
-    if (await this.countrySelect.count()) await this.countrySelect.selectOption({ label: country });
-    if (await this.stateInput.count()) await this.stateInput.fill(state);
-    if (await this.cityInput.count()) await this.cityInput.fill(city);
-    if (await this.zipcodeInput.count()) await this.zipcodeInput.fill(zipcode);
-    if (await this.mobileInput.count()) await this.mobileInput.fill(mobile);
+    await this.firstNameInput.fill(firstName);
+    await this.lastNameInput.fill(lastName);
+    await this.address1Input.fill(address1);
+    await this.countrySelect.selectOption({ label: country });
+    await this.stateInput.fill(state);
+    await this.cityInput.fill(city);
+    await this.zipcodeInput.fill(zipcode);
+    await this.mobileInput.fill(mobile);
 
     // Create account
     await this.createAccountButton.click();
@@ -216,17 +233,27 @@ export class AuthPage extends BasePage {
     }
   }
 
+  /**
+   * Verify that the account created confirmation message is visible.
+   */
   @step('Assert account created message is visible')
   async assertAccountCreatedMessage(): Promise<void> {
     await expect(this.accountCreatedHeader).toBeVisible();
   }
 
+  /**
+   * Click the continue button after account creation to proceed to the main site.
+   */
   @step('Continue after account created')
   async continueAfterAccountCreated(): Promise<void> {
     await this.safeClick(this.continueButton, { timeout: 5000 });
     await this.safeWaitForLoadState('domcontentloaded');
   }
 
+  /**
+   * Assert that the user is logged in with the specified name.
+   * @param name - The expected username to verify in the logged-in banner
+   */
   @step('Assert logged in as user')
   async assertLoggedInAs(name: string): Promise<void> {
     await expect(this.header).toBeVisible();
@@ -257,6 +284,10 @@ export class AuthPage extends BasePage {
     }
   }
 
+  /**
+   * Delete the currently logged-in user account.
+   * @param options - Optional configuration (e.g., continueAfter to click continue after deletion)
+   */
   @step('Delete current account')
   async deleteAccount(options?: { continueAfter?: boolean }): Promise<void> {
     // Ensure header is visible; sometimes a modal Continue hides it

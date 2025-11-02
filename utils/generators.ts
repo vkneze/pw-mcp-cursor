@@ -19,11 +19,17 @@ export function generateUser(seed?: string | number) {
   const firstName = faker.person.firstName();
   const lastName = faker.person.lastName();
   
+  // Add timestamp + random suffix to email to ensure uniqueness in parallel execution
+  const uniqueSuffix = `${Date.now()}${Math.random().toString(36).substring(2, 7)}`;
+  const baseEmail = faker.internet.email({ firstName, lastName }).toLowerCase();
+  const [localPart, domain] = baseEmail.split('@');
+  const uniqueEmail = `${localPart}+${uniqueSuffix}@${domain}`;
+  
   return {
     firstName,
     lastName,
     name: `${firstName} ${lastName}`,
-    email: faker.internet.email({ firstName, lastName }).toLowerCase(),
+    email: uniqueEmail,
     password: faker.internet.password({ length: 12, memorable: false, pattern: /[A-Za-z0-9!@#$%]/ }),
     address1: faker.location.streetAddress(),
     city: faker.location.city(),

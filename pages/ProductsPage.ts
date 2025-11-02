@@ -48,9 +48,15 @@ export class ProductsPage extends BasePage {
     this.infoAddInCardSelector = '.productinfo a.add-to-cart';
   }
 
+  /**
+   * Dismiss any visible cart modal to prevent click interception.
+   */
   @step('Dismiss cart modal if visible')
   private async dismissCartModalIfVisible(): Promise<void> { await dismissAnyModalIfVisible(this.page); }
 
+  /**
+   * Navigate to the products page and wait for it to load.
+   */
   @step("Open the AutomationExercise products page")
   async goto(): Promise<void> {
     await this.setupAdGuards();
@@ -63,6 +69,10 @@ export class ProductsPage extends BasePage {
     await assertVisible(this.productsHeader);
   }
 
+  /**
+   * Search for products using the search box.
+   * @param query - The search term to enter
+   */
   @step("Execute a search using the products search box")
   async search(query: string): Promise<void> {
     await this.dismissCartModalIfVisible();
@@ -81,6 +91,10 @@ export class ProductsPage extends BasePage {
     });
   }
 
+  /**
+   * Assert that all search results match the expected product name.
+   * @param expectedName - The expected product name to match against
+   */
   @step(
     "Assert that search results include only products whose names match the expected product name"
   )
@@ -97,6 +111,11 @@ export class ProductsPage extends BasePage {
     }
   }
 
+  /**
+   * Add the first N products from the products page to cart.
+   * @param n - Number of products to add
+   * @returns Array of product names added to cart
+   */
   @step("Add first N products to cart from products grid")
   async addFirstNProductsToCartFromProductsPage(n: number): Promise<string[]> {
     await this.setupAdGuards();

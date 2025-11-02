@@ -42,9 +42,7 @@ test.describe('Cart - search add 3, remove 1, expect 2 (@cart)', () => {
   });
 
   test('should login, add two known products, verify, then empty cart', async ({ authPage, productsPage, cartPage, ephemeralUser }) => {
-    console.log(`[TEST] Project=${test.info().project.name} UsingUser=${ephemeralUser.email}`);
     // User already created/logged-in by fixture
-
     // Act → deterministically add two products from sample to reduce flakiness
     await productsPage.goto();
     const selected = [products.sampleQueries.blueTop, products.sampleQueries.menTshirt];

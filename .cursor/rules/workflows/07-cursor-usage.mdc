@@ -13,3 +13,4 @@ alwaysApply: true
 - When unsure, ask clarifying questions before generating code.
 - When creating from scratch, update an existing file instead of creating a new one.
 - All flaky tests **must** be tagged `@flaky`.
+- If test is not flaky anymore, then you must remove tag `@flaky`.

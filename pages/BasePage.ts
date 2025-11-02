@@ -26,13 +26,14 @@ export class BasePage {
         return;
       } catch (err) {
         lastError = err;
+        console.warn(`[WARN] Navigation attempt ${attempt + 1} failed for path "${path}":`, (err as Error).message);
         // Soft reset navigation context between attempts
-        await this.page.waitForTimeout(300).catch(() => {
-          // Timeout may fail if page is closed - ignore
+        await this.page.waitForTimeout(300).catch((timeoutErr) => {
+          console.warn('[WARN] Timeout between navigation attempts failed (page may be closed):', (timeoutErr as Error).message);
         });
         if (!/^\/?$/.test(path)) {
-          await this.page.goto('/', { waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => {
-            // Fallback navigation may fail - will retry in next iteration
+          await this.page.goto('/', { waitUntil: 'domcontentloaded', timeout: 5000 }).catch((fallbackErr) => {
+            console.warn('[WARN] Fallback navigation to home failed:', (fallbackErr as Error).message);
           });
         }
       }
@@ -87,7 +88,10 @@ export class BasePage {
     });
   }
 
-  /** Configure network-level and CSS-level ad protections once per page. */
+  /**
+   * Configure network-level and CSS-level ad protections once per page.
+   * Sets up route blocking for known ad domains and applies CSS to hide ad elements.
+   */
   async setupAdGuards(): Promise<void> {
     if (!this.adGuardsConfigured) {
       this.adGuardsConfigured = true;
@@ -132,7 +136,7 @@ export class BasePage {
    */
   protected async safeWaitFor(locator: Locator, options?: { state?: 'visible' | 'attached' | 'detached' | 'hidden'; timeout?: number }): Promise<boolean> {
     return await locator.waitFor(options).then(() => true).catch((err) => {
-      // Timeout or element not found is expected in safe operations
+      console.warn(`[WARN] safeWaitFor failed for state "${options?.state || 'visible'}":`, (err as Error).message);
       return false;
     });
   }
@@ -143,7 +147,7 @@ export class BasePage {
    */
   protected async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<boolean> {
     return await locator.click(options).then(() => true).catch((err) => {
-      // Click failure is expected - element might be detached or not clickable
+      console.warn('[WARN] safeClick failed (element might be detached or not clickable):', (err as Error).message);
       return false;
     });
   }
@@ -154,7 +158,7 @@ export class BasePage {
    */
   protected async safeFill(locator: Locator, value: string): Promise<boolean> {
     return await locator.fill(value).then(() => true).catch((err) => {
-      // Fill failure is expected - element might not be ready or visible
+      console.warn('[WARN] safeFill failed (element might not be ready or visible):', (err as Error).message);
       return false;
     });
   }
@@ -165,7 +169,7 @@ export class BasePage {
    */
   protected async safeIsVisible(locator: Locator): Promise<boolean> {
     return await locator.isVisible().catch((err) => {
-      // Element not visible or page closed is expected
+      console.warn('[WARN] safeIsVisible failed (element not visible or page closed):', (err as Error).message);
       return false;
     });
   }
@@ -176,7 +180,7 @@ export class BasePage {
    */
   protected async safeCount(locator: Locator): Promise<number> {
     return await locator.count().catch((err) => {
-      // Count failure is expected - page might be closed or navigating
+      console.warn('[WARN] safeCount failed (page might be closed or navigating):', (err as Error).message);
       return 0;
     });
   }
@@ -187,7 +191,7 @@ export class BasePage {
    */
   protected async safeWaitForLoadState(state: 'load' | 'domcontentloaded' | 'networkidle' = 'load'): Promise<void> {
     await this.page.waitForLoadState(state).catch((err) => {
-      // Timeout is acceptable - page might already be in desired state or closed
+      console.warn(`[WARN] safeWaitForLoadState("${state}") timeout or failure:`, (err as Error).message);
     });
   }
 
@@ -197,7 +201,7 @@ export class BasePage {
    */
   protected async safeWaitForURL(url: string | RegExp | ((url: URL) => boolean), options?: { timeout?: number; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' | 'commit' }): Promise<boolean> {
     return await this.page.waitForURL(url, options).then(() => true).catch((err) => {
-      // Timeout or navigation failure is expected in safe operations
+      console.warn('[WARN] safeWaitForURL timeout or navigation failure:', (err as Error).message);
       return false;
     });
   }
@@ -208,9 +212,36 @@ export class BasePage {
    */
   protected async safeScrollIntoView(locator: Locator, options?: { timeout?: number }): Promise<boolean> {
     return await locator.scrollIntoViewIfNeeded(options).then(() => true).catch((err) => {
-      // Scroll failure is expected - element might not be scrollable or detached
+      console.warn('[WARN] safeScrollIntoView failed (element might not be scrollable or detached):', (err as Error).message);
       return false;
     });
+  }
+
+  /**
+   * Poll a condition function until it returns true or timeout is reached.
+   * Returns true if condition was met, false if timeout.
+   */
+  protected async waitUntil(
+    condition: () => Promise<boolean>,
+    options?: { timeout?: number; interval?: number; description?: string }
+  ): Promise<boolean> {
+    const timeout = options?.timeout ?? 10000;
+    const interval = options?.interval ?? 150;
+    const end = Date.now() + timeout;
+    const description = options?.description ? ` for "${options.description}"` : '';
+
+    while (Date.now() < end) {
+      try {
+        if (await condition()) {
+          return true;
+        }
+      } catch (err) {
+        console.warn(`[WARN] waitUntil${description} condition check failed, will retry:`, (err as Error).message);
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+    console.warn(`[WARN] waitUntil${description} timed out after ${timeout}ms`);
+    return false;
   }
 }
 

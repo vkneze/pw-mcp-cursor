@@ -16,6 +16,12 @@ test-results/**/*.png
 test-results/**/*.webm
 test-results/**/*.zip
 
+# Debug screenshots from test failures (created during debugging)
+*-error-*.png
+*-missing-*.png
+signup-*.png
+password-*.png
+
 # Playwright trace files
 trace.zip
 

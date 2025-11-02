@@ -18,9 +18,7 @@ test.describe('Order - Existing user completes checkout (@order)', () => {
 
   // @flaky: Parallel workers and modal overlays can slow cart stabilization; allow extra time.
   test('should login, add two products from products page, and complete order successfully (@flaky)', async ({ productsPage, cartPage, ephemeralUser }) => {
-    console.log(`[TEST] Project=${test.info().project.name} UsingUser=${ephemeralUser.email}`);
     // User is already created and logged in by the ephemeralUser fixture
-
     // Add two products from products page
     await productsPage.goto();
     await productsPage.addFirstNProductsToCartFromProductsPage(2);

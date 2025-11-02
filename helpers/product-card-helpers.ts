@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { dismissAnyModalIfVisible } from './modals';
+import { COMMON } from '../constants/selectors';
 
 /**
  * Click the first available locator from a list of candidates.
@@ -44,48 +45,36 @@ export async function addFirstNFromCards(
   for (let i = 0; i < total && names.length < take; i++) {
     const card = cards.nth(i);
     
-    // Scroll card into view
-    await card.scrollIntoViewIfNeeded().catch(() => {});
-    
-    // Hover to reveal add-to-cart overlay (brand pages need more time)
-    const hovered = await card.hover({ force: true }).then(() => true).catch(() => false);
-    if (hovered) {
-      await page.waitForTimeout(500); // Allow overlay animation to complete
-    }
+    // Scroll card into view and hover to reveal add-to-cart overlay
+    await card.scrollIntoViewIfNeeded().catch((err) => {
+      console.warn(`[WARN] Failed to scroll card #${i + 1} into view:`, err.message);
+    });
+    await card.hover({ force: true }).catch((err) => {
+      console.warn(`[WARN] Failed to hover card #${i + 1}:`, err.message);
+    });
+    await page.waitForTimeout(500); // Allow overlay animation to complete
     
     // Extract product name
     const name = (await card.locator(nameSelector).textContent().catch(() => null) || '').trim();
 
-    // Build list of add-to-cart button candidates
-    const candidates = [
-      ...addSelectors.map(sel => card.locator(sel).first()),
-      card.getByRole('link', { name: /add to cart/i }).first(),
-      card.getByRole('button', { name: /add to cart/i }).first(),
-    ];
-
+    // Try to click add-to-cart button from provided selectors
+    const candidates = addSelectors.map(sel => card.locator(sel).first());
     const clicked = await clickFirstAvailable(candidates, { force: true, timeoutMs: 3000 });
     if (!clicked) {
       console.log(`[WARN] Could not click add-to-cart for product: ${name || `card #${i + 1}`}`);
       continue;
     }
 
-    // Wait for modal confirmation and dismiss it
-    const modalAppeared = await Promise.race([
-      page.locator('#cartModal').waitFor({ state: 'visible', timeout: 3000 }),
-      page.locator('.modal:visible').waitFor({ state: 'visible', timeout: 3000 }),
-    ]).then(() => true).catch(() => false);
+    // Dismiss any modal that appears after adding to cart
+    await dismissAnyModalIfVisible(page);
     
-    if (modalAppeared) {
-      await dismissAnyModalIfVisible(page);
-    }
+    // Add product name to list
+    if (name) names.push(name);
     
-    // Add product name to list (modal appearance is unreliable, so we add if click succeeded)
-    if (name) {
-      names.push(name);
-    }
-    
-    // Wait for any pending navigation/DOM updates
-    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    // Wait for DOM to settle
+    await page.waitForLoadState('domcontentloaded').catch((err) => {
+      console.warn('[WARN] Failed to wait for domcontentloaded after adding product:', err.message);
+    });
   }
   
   return names;

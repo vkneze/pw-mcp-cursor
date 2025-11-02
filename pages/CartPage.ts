@@ -6,6 +6,7 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { BasePage, step } from '../pages/BasePage';
 import { paths } from '../data/paths';
+import { orderMessages } from '../data/order';
 import { CART, SELECTORS as SELECT } from '../constants/selectors';
 
 export class CartPage extends BasePage {
@@ -93,12 +94,19 @@ export class CartPage extends BasePage {
     this.xDeleteLinkName = /^x$/i;
   }
 
-  /** Sleep without relying on the Playwright Page (avoids errors if page closes). */
+  /**
+   * Sleep without relying on the Playwright Page to avoid errors if page closes.
+   * @param ms - Milliseconds to sleep
+   */
   private async sleep(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /** Periodically refresh the cart view to avoid stale DOM while waiting. */
+  /**
+   * Periodically refresh the cart view to avoid stale DOM while waiting.
+   * Refreshes approximately every second based on elapsed time.
+   * @param startMs - The start timestamp (from Date.now())
+   */
   private async periodicRefreshCartIfDue(startMs: number): Promise<void> {
     // Use a deterministic refresh cadence every ~1s instead of modulo windows
     const elapsedMs = Date.now() - startMs;
@@ -116,28 +124,50 @@ export class CartPage extends BasePage {
     }
   }
 
-  /** Get current visible product names for error messages/debugging. */
+  /**
+   * Get current visible product names for error messages and debugging.
+   * @returns Array of visible product names in the cart
+   */
   private async getVisibleProductNames(): Promise<string[]> {
-    const loc = (await this.visibleProductNameCells.count()) ? this.visibleProductNameCells : this.productNameCells;
-    const count = await loc.count();
+    // Use visible cells if available, otherwise fall back to all cells
+    const cellsToCheck = (await this.visibleProductNameCells.count()) 
+      ? this.visibleProductNameCells 
+      : this.productNameCells;
+    
+    const count = await cellsToCheck.count();
     const names: string[] = [];
+    
     for (let i = 0; i < count; i++) {
-      const txt = (await loc.nth(i).innerText().catch(async () => (await loc.nth(i).textContent()) || '')) || '';
-      const name = txt.trim();
+      const cell = cellsToCheck.nth(i);
+      const text = (await cell.innerText().catch(async () => (await cell.textContent()) || '')) || '';
+      const name = text.trim();
       if (name) names.push(name);
     }
+    
     return names;
   }
 
-  /** Try to find a live page that is on checkout/payment or has payment controls. */
+  /**
+   * Check if the given URL is a checkout or payment page.
+   * @param url - The URL to check
+   * @returns True if URL contains /checkout or /payment
+   */
+  private isCheckoutOrPaymentPage(url: string): boolean {
+    return url.includes('/checkout') || url.includes('/payment');
+  }
+
+  /**
+   * Try to find a live page that is on checkout/payment or has payment controls.
+   * Useful when the original page closes during checkout flow.
+   * @returns The found page or null if not found
+   */
   private async findPaymentOrCheckoutPage(): Promise<Page | null> {
     try {
       const pages = this.page.context().pages().filter(p => !p.isClosed());
-      // Prefer latest pages first
+      // Prefer latest pages first - check URL first
       for (let i = pages.length - 1; i >= 0; i--) {
         const p = pages[i];
-        const url = p.url();
-        if (/\/(checkout|payment)\b/i.test(url)) return p;
+        if (this.isCheckoutOrPaymentPage(p.url())) return p;
       }
       // Heuristic by presence of controls
       for (let i = pages.length - 1; i >= 0; i--) {
@@ -158,67 +188,96 @@ export class CartPage extends BasePage {
   }
 
   /**
-   * Wait until cart visible count equals expected with stability across consecutive reads.
-   * Returns true on success, false on timeout.
+   * Handle page recovery by finding and switching to a live payment page.
+   * @param params - Payment details to pass to the recovered page
+   * @returns Result of placeOrder on the recovered page, or throws if no page found
    */
-  private async waitForCountToEqual(expected: number, timeoutMs: number = 25000, requiredStableHits: number = 3): Promise<boolean> {
+  private async recoverAndPlaceOrder(
+    params: { nameOnCard: string; cardNumber: string; cvc: string; expiryMonth: string; expiryYear: string; }
+  ): Promise<void> {
+    const replacement = await this.findPaymentOrCheckoutPage().catch(() => null);
+    if (replacement) {
+      const fresh = new CartPage(replacement);
+      return await fresh.placeOrder(params, true);
+    }
+    throw new Error('Cannot place order: page closed and no replacement page found');
+  }
+
+  /**
+   * Fill the payment form with the provided card details.
+   * @param params - Payment details including card information
+   */
+  private async fillPaymentForm(
+    params: { nameOnCard: string; cardNumber: string; cvc: string; expiryMonth: string; expiryYear: string; }
+  ): Promise<void> {
+    await this.nameOnCardInput.fill(params.nameOnCard);
+    await this.cardNumberInput.fill(params.cardNumber);
+    await this.cvcInput.fill(params.cvc);
+    await this.expiryMonthInput.fill(params.expiryMonth);
+    await this.expiryYearInput.fill(params.expiryYear);
+  }
+
+  /**
+   * Wait for payment form fields to become visible, with optional timeout.
+   * @param timeout - Timeout in milliseconds (default: 8000)
+   * @returns True if form is visible, false otherwise
+   */
+  private async isPaymentFormVisible(timeout: number = 8000): Promise<boolean> {
+    return await Promise.race([
+      this.safeWaitFor(this.nameOnCardInput, { state: 'visible', timeout }),
+      this.safeWaitFor(this.cardNumberInput, { state: 'visible', timeout }),
+      this.safeWaitFor(this.payButton, { state: 'visible', timeout }),
+    ]);
+  }
+
+  /**
+   * Ensure payment form is visible by clicking "Place Order" trigger if needed.
+   * Only clicks the trigger if payment form is not already visible.
+   */
+  private async ensurePaymentFormVisible(): Promise<void> {
+    // Quick check: is form already visible?
+    const alreadyVisible = await this.isPaymentFormVisible(1000);
+    if (alreadyVisible) return;
+
+    // Form not visible yet - try clicking "Place Order" button to reveal it
+    const placeOrderTrigger = this.placeOrderLink.or(this.placeOrderButton);
+    const triggerCount = await placeOrderTrigger.count().catch(() => 0);
+    
+    if (triggerCount > 0) {
+      await placeOrderTrigger.first().click({ force: true }).catch(() => {
+        // Click failed - will check form visibility below
+      });
+      await this.safeWaitForLoadState('domcontentloaded');
+    }
+  }
+
+  /**
+   * Wait until cart count equals expected value.
+   * @param expected - The expected cart item count
+   * @param timeoutMs - Maximum time to wait in milliseconds (default: 15000)
+   * @returns True on success, false on timeout
+   */
+  private async waitForCountToEqual(expected: number, timeoutMs: number = 15000): Promise<boolean> {
     await this.ensureCartPageReady();
-    const start = Date.now();
-    let stableHits = 0;
-    while (Date.now() - start < timeoutMs) {
-      try {
-        const count = await this.getStableVisibleItemCount();
-        if (count === expected) {
-          stableHits++;
-        if (stableHits >= requiredStableHits) return true;
-      } else {
-        stableHits = 0;
-      }
-    } catch (err) {
-      // Count might fail if page is navigating - re-ensure cart is ready
-      console.log('[INFO] Cart count failed, re-ensuring page ready:', (err as Error).message);
-      await this.ensureCartPageReady();
-    }
-      await this.sleep(150);
-      await this.periodicRefreshCartIfDue(start);
-    }
-    return false;
+    return await this.waitUntil(
+      async () => (await this.getCartItemCount()) === expected,
+      { timeout: timeoutMs, interval: 200 }
+    );
   }
 
-  /** Read current visible cart item count with a safe fallback. */
-  private async getVisibleItemCount(): Promise<number> {
-    if (this.page.isClosed()) return 0;
-    try {
-      const visibleCount = await this.visibleProductRows.count();
-      if (visibleCount > 0) return visibleCount;
-      return await this.productRows.count();
-    } catch (err) {
-      // Page might be closed or navigating - return 0
-      console.log('[INFO] Could not get visible item count:', (err as Error).message);
-      return 0;
-    }
+  /**
+   * Get current cart item count.
+   * @returns Number of visible product rows in the cart
+   */
+  private async getCartItemCount(): Promise<number> {
+    return await this.safeCount(this.visibleProductRows);
   }
 
-  /** Sample the visible item count several times and return when stable or the last read. */
-  private async getStableVisibleItemCount(samples: number = 3, delayMs: number = 75): Promise<number> {
-    if (this.page.isClosed()) return 0;
-    let last = -1;
-    let stableReads = 0;
-    for (let i = 0; i < samples; i++) {
-      const current = await this.getVisibleItemCount();
-      if (current === last) {
-        stableReads++;
-      } else {
-        last = current;
-        stableReads = 1;
-      }
-      if (stableReads >= 2) return current; // at least two consistent reads
-      await this.sleep(delayMs);
-    }
-    return last < 0 ? 0 : last;
-  }
-
-  /** Wait for either the cart table or the empty-cart message to be visible. */
+  /**
+   * Wait for either the cart table or the empty-cart message to be visible.
+   * @param timeoutMs - Maximum time to wait in milliseconds (default: 12000)
+   * @returns True if either signal appeared, false on timeout
+   */
   private async waitForCartReadySignals(timeoutMs: number = 12000): Promise<boolean> {
     const table = this.cartTable;
     const emptyMsg = this.emptyCartMessage;
@@ -228,14 +287,25 @@ export class CartPage extends BasePage {
     ]);
   }
 
-  /** Ensure we're on the cart page and DOM is ready for queries. */
+  /**
+   * Check if the current URL is the cart page.
+   * @returns True if on cart page, false otherwise
+   */
+  private isOnCartPage(): boolean {
+    return this.page.url().includes('/view_cart');
+  }
+
+  /**
+   * Ensure we're on the cart page and DOM is ready for queries.
+   * Attempts to navigate to cart page and wait for ready signals with retries.
+   */
   private async ensureCartPageReady(): Promise<void> {
     if (this.page.isClosed()) return; // Let caller handle if needed
 
     const maxAttempts = 3;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        if (!/\/view_cart/i.test(this.page.url())) {
+        if (!this.isOnCartPage()) {
           await this.page.goto(paths.viewCart, { waitUntil: 'domcontentloaded' });
         }
       } catch (err) {
@@ -255,11 +325,19 @@ export class CartPage extends BasePage {
     }
   }
 
+  /**
+   * Wait for the cart view to be fully ready for interaction.
+   */
   @step('Wait for cart view to be ready')
   async waitForCartReady(): Promise<void> {
     await this.ensureCartPageReady();
   }
 
+  /**
+   * Assert that specific products are present in the cart.
+   * @param expectedNames - Array of product names (or fragments) to verify
+   * @throws {Error} If any expected product is not found in cart
+   */
   @step('Assert products in cart')
   async assertProductsInCart(expectedNames: string[]): Promise<void> {
     await this.ensureCartPageReady();
@@ -285,6 +363,10 @@ export class CartPage extends BasePage {
     }
   }
 
+  /**
+   * Assert that the cart contains at least the specified number of items.
+   * @param minExpected - Minimum expected number of items in cart
+   */
   @step('Assert cart has at least N items')
   async assertCartItemsCount(minExpected: number): Promise<void> {
     await this.ensureCartPageReady();
@@ -300,92 +382,123 @@ export class CartPage extends BasePage {
     expect(count).toBeGreaterThanOrEqual(minExpected);
   }
 
-  @step('Remove first cart item matching product name')
-  async removeProductByName(nameFragment: string): Promise<void> {
-    await this.ensureCartPageReady();
-    const beforeCount = await this.getStableVisibleItemCount();
-    const rows = this.cartItemRows;
+  /**
+   * Find the index of the first cart row matching the given product name fragment.
+   * @param nameFragment - Part of the product name to search for (case-insensitive)
+   * @returns Row index if found, -1 if not found
+   */
+  private async findProductRowIndex(nameFragment: string): Promise<number> {
     const nameRegex = new RegExp(this.escapeForRegex(nameFragment), 'i');
-    const count = await rows.count();
+    const count = await this.cartItemRows.count();
+    
     for (let i = 0; i < count; i++) {
-      const row = rows.nth(i);
       const nameCell = this.productNameCells.nth(i);
       if (await nameCell.count()) {
         const text = ((await nameCell.textContent()) || '').trim();
         if (nameRegex.test(text)) {
-          const deleteLink = this.deleteButtons.nth(i).or(this.xDeleteLinks.nth(i));
-          await deleteLink.first().click();
-          await this.page.waitForLoadState('domcontentloaded');
-          // Wait for the specific row to detach to ensure removal completed
-          await this.safeWaitFor(row, { state: 'detached' });
-          // Wait until cart count decreases from beforeCount
-          const start = Date.now();
-          while (Date.now() - start < 5000) {
-            const after = await this.getStableVisibleItemCount();
-            if (after <= Math.max(0, beforeCount - 1)) break;
-            await this.sleep(100);
-          }
-          return;
+          return i;
         }
       }
     }
-    throw new Error(`Product not found in cart to remove: ${nameFragment}`);
+    return -1;
   }
 
+  /**
+   * Remove the first cart item that matches the given product name fragment.
+   * @param nameFragment - Part of the product name to search for (case-insensitive)
+   * @throws {Error} If no matching product is found
+   */
+  @step('Remove first cart item matching product name')
+  async removeProductByName(nameFragment: string): Promise<void> {
+    await this.ensureCartPageReady();
+    const beforeCount = await this.getCartItemCount();
+    
+    // Find the matching product row
+    const rowIndex = await this.findProductRowIndex(nameFragment);
+    if (rowIndex === -1) {
+      throw new Error(`Product not found in cart to remove: ${nameFragment}`);
+    }
+
+    // Click delete button for the found row
+    const row = this.cartItemRows.nth(rowIndex);
+    const deleteLink = this.deleteButtons.nth(rowIndex).or(this.xDeleteLinks.nth(rowIndex));
+    await deleteLink.first().click();
+    await this.page.waitForLoadState('domcontentloaded');
+    
+    // Wait for removal to complete
+    await this.safeWaitFor(row, { state: 'detached' });
+    await this.waitUntil(
+      async () => (await this.getCartItemCount()) <= Math.max(0, beforeCount - 1),
+      { timeout: 5000, description: 'cart count to decrease after removal' }
+    );
+  }
+
+  /**
+   * Check if the cart is currently empty.
+   * @returns True if cart is empty, false otherwise
+   */
+  private async isCartEmpty(): Promise<boolean> {
+    const emptyMsgVisible = await this.safeIsVisible(this.emptyCartMessage);
+    const itemCount = await this.getCartItemCount();
+    return emptyMsgVisible || itemCount === 0;
+  }
+
+  /**
+   * Remove all items from the cart one by one until cart is empty.
+   * @throws {Error} If cart is not empty after maximum iterations
+   */
   @step('Remove all items from cart')
   async removeAllItems(): Promise<void> {
     await this.ensureCartPageReady();
-    const emptyMsg = this.emptyCartMessage;
 
-    // Fast path: empty state already visible
-    if (await this.safeIsVisible(emptyMsg)) return;
+    // Early exit if already empty
+    if (await this.isCartEmpty()) return;
 
     const maxIterations = 50;
     for (let i = 0; i < maxIterations; i++) {
-      // If there are no product rows or no delete buttons, stop
-      const rowsCount = await this.safeCount(this.productRows);
-      if (rowsCount === 0) break;
+      // Stop if cart is now empty
+      if (await this.isCartEmpty()) return;
 
-      const deleteBtn = this.deleteButtons.first().or(this.xDeleteLinks.first());
-      if (!(await deleteBtn.count())) break;
-
-      const row = this.productRows.first();
-      // Click to remove item - will fail if element detaches mid-click
-      await deleteBtn.click({ force: true });
-
-      // Wait for the row to be removed and page to settle
-      await this.safeWaitFor(row, { state: 'detached', timeout: 5000 });
-      await this.safeWaitForLoadState('domcontentloaded');
-
-      // If empty message visible now, we are done
-      if (await this.safeIsVisible(emptyMsg)) break;
+      // Remove first item
+      const itemCount = await this.getCartItemCount();
+      if (itemCount === 0) return;
+      
+      await this.removeFirstItem();
     }
 
-    // Final check
-    const remaining = await this.getStableVisibleItemCount();
-    if (remaining > 0 && !(await this.safeIsVisible(emptyMsg))) {
-      throw new Error(`Cart not empty after removal. Remaining items: ${remaining}`);
+    // Final check - if we hit max iterations and cart still not empty, throw error
+    if (!(await this.isCartEmpty())) {
+      const remaining = await this.getCartItemCount();
+      throw new Error(`Cart not empty after ${maxIterations} removal attempts. Remaining items: ${remaining}`);
     }
   }
 
+  /**
+   * Assert that the cart is empty (either shows empty message or has 0 items).
+   * @throws {Error} If cart is not empty
+   */
   @step('Assert cart is empty')
   async assertCartEmpty(): Promise<void> {
     await this.ensureCartPageReady();
-    const emptyMsg = this.emptyCartMessage;
-    const timeoutMs = 15000;
-    const end = Date.now() + timeoutMs;
-    while (Date.now() < end) {
-      const [count, msgVisible] = await Promise.all([
-        this.getStableVisibleItemCount(),
-        this.safeIsVisible(emptyMsg),
-      ]);
-      if (msgVisible || count === 0) return;
-      await this.sleep(150);
+    const isEmpty = await this.waitUntil(
+      async () => {
+        const count = await this.getCartItemCount();
+        const msgVisible = await this.safeIsVisible(this.emptyCartMessage);
+        return msgVisible || count === 0;
+      },
+      { timeout: 15000 }
+    );
+    if (!isEmpty) {
+      const remaining = await this.getCartItemCount();
+      throw new Error(`Expected empty cart but found ${remaining} item(s).`);
     }
-    const remaining = await this.getStableVisibleItemCount();
-    throw new Error(`Expected empty cart but found ${remaining} item(s).`);
   }
 
+  /**
+   * Assert that the cart contains exactly the specified number of items.
+   * @param expected - Expected exact number of items in cart
+   * @throws {Error} If cart item count doesn't match expected
+   */
   @step('Assert cart has exactly N items')
   async assertCartItemsExactCount(expected: number): Promise<void> {
     if (expected === 0) {
@@ -393,47 +506,46 @@ export class CartPage extends BasePage {
       return;
     }
     await this.ensureCartPageReady();
-    const ok = await this.waitForCountToEqual(expected, 15000, 3);
+    const ok = await this.waitForCountToEqual(expected, 15000);
     if (ok) return;
     await this.ensureCartPageReady();
-    const currentCount = await this.getStableVisibleItemCount();
+    const currentCount = await this.getCartItemCount();
     const names = await this.getVisibleProductNames();
     throw new Error(`Timed out waiting for cart to have ${expected} items. Got ${currentCount}. Items: ${names.join(', ')}`);
   }
 
+  /**
+   * Get the current number of items in the cart.
+   * @returns Current cart item count
+   */
   @step('Get cart items count')
   async getCartItemsCount(): Promise<number> {
-    if (this.page.isClosed()) return 0;
     await this.ensureCartPageReady();
-    try {
-      return await this.visibleProductRows.count();
-    } catch (err) {
-      console.log('[INFO] Cart count failed, retrying:', (err as Error).message);
-      if (this.page.isClosed()) return 0;
-      await this.ensureCartPageReady();
-      try {
-        return await this.visibleProductRows.count();
-      } catch (retryErr) {
-        console.log('[WARN] Cart count retry also failed:', (retryErr as Error).message);
-        return 0;
-      }
-    }
+    return await this.getCartItemCount();
   }
 
+  /**
+   * Wait until the cart contains exactly the specified number of items.
+   * @param expected - Expected exact number of items
+   * @param timeoutMs - Maximum time to wait in milliseconds (default: 20000)
+   * @throws {Error} If timeout is reached before cart count matches
+   */
   @step((expected: number, timeoutMs: number = 5000) => `Wait until cart has exactly ${expected} items`)
   async waitForCartItemsExactCount(expected: number, timeoutMs: number = 20000): Promise<void> {
-    const ok = await this.waitForCountToEqual(expected, timeoutMs, 3);
+    const ok = await this.waitForCountToEqual(expected, timeoutMs);
     if (ok) return;
-    await this.ensureCartPageReady();
-    const currentCount = await this.getStableVisibleItemCount();
+    const currentCount = await this.getCartItemCount();
     const names = await this.getVisibleProductNames();
     throw new Error(`Timed out waiting for cart to have ${expected} items. Got ${currentCount}. Items: ${names.join(', ')}`);
   }
 
+  /**
+   * Remove the first item from the cart.
+   */
   @step('Remove first item from cart')
   async removeFirstItem(): Promise<void> {
     await this.ensureCartPageReady();
-    const before = await this.getStableVisibleItemCount();
+    const before = await this.getCartItemCount();
     if (before === 0) return;
     const firstRow = this.productRows.first();
     const deleteBtn = this.deleteButtons.first().or(this.xDeleteLinks.first());
@@ -458,9 +570,13 @@ export class CartPage extends BasePage {
       await this.safeWaitForLoadState('domcontentloaded');
     }
     
-    await this.waitForCountToEqual(Math.max(0, before - 1), 8000, 2);
+    await this.waitForCountToEqual(Math.max(0, before - 1), 8000);
   }
 
+  /**
+   * Click the checkout button to proceed to the checkout page.
+   * Waits for either the checkout page or login prompt to appear.
+   */
   @step('Proceed to checkout from cart')
   async proceedToCheckout(): Promise<void> {
     if (await this.checkoutLink.count()) {
@@ -471,131 +587,122 @@ export class CartPage extends BasePage {
       // Fallback known selector
       await this.checkoutFallback.click();
     }
+    
     // Wait for one of the checkout outcomes: URL or login indicators
     const timeoutMs = 20000;
-    const urlPromise = this.safeWaitForURL(/\/(checkout|login|signup)\b/i, { timeout: timeoutMs });
+    const checkoutOrLoginUrl = (url: URL) => {
+      const path = url.pathname;
+      return path.includes('/checkout') || path.includes('/login') || path.includes('/signup');
+    };
+    
+    const urlPromise = this.safeWaitForURL(checkoutOrLoginUrl, { timeout: timeoutMs });
     const headerPromise = this.safeWaitFor(this.loginOrSignupHeaderText, { state: 'visible', timeout: timeoutMs });
     const modalPromise = this.safeWaitFor(this.checkoutLoginModal, { state: 'visible', timeout: timeoutMs });
     const ctaPromise = this.safeWaitFor(this.registerLoginLink, { state: 'visible', timeout: timeoutMs });
+    
     // Wait for any checkout indicator - all inner promises handle errors, timeout is acceptable
     await Promise.race([urlPromise, headerPromise, modalPromise, ctaPromise]).catch((err) => {
       // All race conditions handled by inner promises, outer timeout is acceptable
     });
+    
     // Let network settle before next steps
     await this.safeWaitForLoadState('networkidle');
   }
 
+  /**
+   * Place an order by filling payment form and submitting it.
+   * Handles page replacement/closure during checkout flow.
+   * @param params - Payment details including card information
+   * @param _recovered - Internal flag to prevent infinite recovery loops
+   * @throws {Error} If payment form is not found or page is closed
+   */
   @step('Place order with payment details')
   async placeOrder(
     params: { nameOnCard: string; cardNumber: string; cvc: string; expiryMonth: string; expiryYear: string; },
     _recovered: boolean = false,
   ): Promise<void> {
+    // Check page state and recover if needed
     if (this.page.isClosed()) {
-      // Attempt a single recovery by switching to the last open page in the context
-      if (!_recovered) {
-        const replacement = await this.findPaymentOrCheckoutPage().catch(() => null);
-        if (replacement) {
-          const fresh = new CartPage(replacement);
-          return await fresh.placeOrder(params, true);
-        }
+      if (_recovered) {
+        throw new Error('Cannot place order: page is already closed');
       }
-      throw new Error('Cannot place order: page is already closed');
+      return await this.recoverAndPlaceOrder(params);
     }
 
-    // Open payment form if a CTA is present; ignore if fields are already visible
-    const placeOrderTrigger = this.placeOrderLink.or(this.placeOrderButton);
-    let triggerCount = 0;
-    try {
-      triggerCount = await placeOrderTrigger.count();
-    } catch (err) {
-      // Page could be navigating; continue to field-visibility check
-      console.log('[INFO] Could not count place order triggers:', (err as Error).message);
-      triggerCount = 0;
-    }
-    if (triggerCount > 0) {
-      // Click to reveal payment form (optional - form might already be visible)
-      await placeOrderTrigger.first().click({ force: true }).catch(() => {
-        // Click failed - payment form might already be visible, will verify below
-      });
-      await this.safeWaitForLoadState('domcontentloaded');
-    }
+    // Ensure payment form is visible (clicks "Place Order" button if needed)
+    await this.ensurePaymentFormVisible();
 
-    // If clicking caused a page replacement/closure, adopt the live page
-    if (this.page.isClosed() && !_recovered) {
-      const replacement = await this.findPaymentOrCheckoutPage();
-      if (replacement) {
-        const fresh = new CartPage(replacement);
-        return await fresh.placeOrder(params, true);
+    // Check if page closed after interaction, recover if needed
+    if (this.page.isClosed()) {
+      if (_recovered) {
+        throw new Error('Page closed after ensuring form visibility');
       }
-      throw new Error('Payment form not visible; original page closed and no replacement page found');
+      return await this.recoverAndPlaceOrder(params);
     }
 
-    // Wait briefly for payment fields to appear
-    const formVisible = await Promise.race([
-      this.safeWaitFor(this.nameOnCardInput, { state: 'visible', timeout: 8000 }),
-      this.safeWaitFor(this.cardNumberInput, { state: 'visible', timeout: 8000 }),
-      this.safeWaitFor(this.payButton, { state: 'visible', timeout: 8000 }),
-    ]);
-
-    if (!formVisible) {
-      // One last attempt: scan all open pages for the form
-      const alt = await this.findPaymentOrCheckoutPage();
-      if (alt && alt !== this.page && !_recovered) {
-        const fresh = new CartPage(alt);
-        return await fresh.placeOrder(params, true);
-      }
+    // Verify payment form is now visible - if not, something is wrong
+    if (!(await this.isPaymentFormVisible())) {
       const currentUrl = this.page.isClosed() ? '<closed>' : this.page.url();
-      throw new Error(`Payment form not visible; cannot place order. URL=${currentUrl}`);
+      throw new Error(`Payment form not visible after attempting to reveal it. URL=${currentUrl}`);
     }
 
-    // Fill payment form using stable data-qa selectors with small retries (Firefox stability)
-    const fillField = async (locator: Locator, value: string) => {
-      const end = Date.now() + 4000;
-      while (Date.now() < end) {
-        const filled = await this.safeFill(locator, value);
-        if (filled) return;
-        await this.sleep(100);
-      }
-      await locator.fill(value); // final attempt to bubble proper error
-    };
-    await fillField(this.nameOnCardInput, params.nameOnCard);
-    await fillField(this.cardNumberInput, params.cardNumber);
-    await fillField(this.cvcInput, params.cvc);
-    await fillField(this.expiryMonthInput, params.expiryMonth);
-    await fillField(this.expiryYearInput, params.expiryYear);
-
-    // Submit payment
+    // Fill and submit payment form
+    await this.fillPaymentForm(params);
     await this.payButton.click();
 
-    // Assert success on current page only to avoid closed-page assertions
-    await expect(this.page.getByText('Order Placed!', { exact: false })).toBeVisible();
+    // Assert success
+    await expect(this.page.getByText(orderMessages.successMessage, { exact: false })).toBeVisible();
   }
 
+  /**
+   * Check if the current URL is a login or signup page.
+   * @param url - The URL to check
+   * @returns True if URL contains /login or /signup
+   */
+  private isLoginOrSignupPage(url: string): boolean {
+    return url.includes('/login') || url.includes('/signup');
+  }
+
+  /**
+   * Check if the current URL is a checkout page.
+   * @param url - The URL to check
+   * @returns True if URL contains /checkout
+   */
+  private isCheckoutPage(url: string): boolean {
+    return url.includes('/checkout');
+  }
+
+  /**
+   * Assert that the checkout flow requires login by checking for login prompts or redirects.
+   * @throws {Error} If no login requirement is detected
+   */
   @step('Assert checkout prompts for login')
   async assertCheckoutRequiresLogin(): Promise<void> {
-    // Either redirect to auth, or show any clear login-required indicator
-    const timeoutMs = 15000;
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const url = this.page.url();
-      const redirectedToAuth = /\/(login|signup)\b/i.test(url);
-      if (redirectedToAuth) return;
+    const loginDetected = await this.waitUntil(
+      async () => {
+        const url = this.page.url();
+        
+        // Check if redirected to login/signup page
+        if (this.isLoginOrSignupPage(url)) return true;
 
-      const [headerVisible, modalVisible, inlineMsgVisible, regLinkCount] = await Promise.all([
-        this.safeIsVisible(this.loginOrSignupHeaderText),
-        this.safeIsVisible(this.checkoutLoginModal),
-        this.safeIsVisible(this.loginRequiredText),
-        this.safeCount(this.registerLoginLink),
-      ]);
+        // Check for visible login indicators
+        const [headerVisible, modalVisible, inlineMsgVisible, regLinkCount] = await Promise.all([
+          this.safeIsVisible(this.loginOrSignupHeaderText),
+          this.safeIsVisible(this.checkoutLoginModal),
+          this.safeIsVisible(this.loginRequiredText),
+          this.safeCount(this.registerLoginLink),
+        ]);
 
-      if (headerVisible || modalVisible || inlineMsgVisible) return;
+        if (headerVisible || modalVisible || inlineMsgVisible) return true;
 
-      const atCheckout = /\/checkout\b/i.test(url);
-      if (atCheckout && regLinkCount > 0) return;
-
-      await this.sleep(150);
+        // Check if on checkout page with login link present
+        return this.isCheckoutPage(url) && regLinkCount > 0;
+      },
+      { timeout: 15000 }
+    );
+    
+    if (!loginDetected) {
+      throw new Error(`Expected checkout to require login, but no prompt was detected. URL: ${this.page.url()}`);
     }
-    const currentUrl = this.page.url();
-    throw new Error(`Expected checkout to require login, but no prompt was detected. URL: ${currentUrl}`);
   }
 }

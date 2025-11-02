@@ -15,6 +15,15 @@ export type SignupUser = {
 };
 
 /**
+ * Default date of birth values for signup forms.
+ */
+export const defaultDateOfBirth = {
+  day: '1',
+  month: '1',
+  year: '1990',
+};
+
+/**
  * Generate a random user for signup/registration tests.
  * Uses generic user generator and adds application-specific fields.
  * 

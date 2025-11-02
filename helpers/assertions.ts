@@ -28,26 +28,11 @@ export async function assertTitleContains(page: Page, value: string | RegExp): P
 
 /**
  * Purpose: Assert that a target locator is visible in the DOM.
- * Inputs: target - Playwright Locator to verify.
+ * Inputs: target - Playwright Locator to verify; options - optional timeout.
  * Expected: Locator is visible; otherwise the test fails.
  */
-export async function assertVisible(target: Locator, options?: { page?: Page; timeoutMs?: number }): Promise<void> {
-  const timeout = options?.timeoutMs ?? 30000;
-  try {
-    if (options?.page && options.page.isClosed()) {
-      throw new Error('Page is closed before visibility assertion');
-    }
-    // Prefer locator-level wait first to reduce noise when page is slow
-    await target.waitFor({ state: 'visible', timeout });
-    // Double-check with expect for consistency with other assertions
-    await expect(target).toBeVisible({ timeout: Math.max(0, timeout - 50) });
-  } catch (err: any) {
-    const msg = String(err?.message || '');
-    if (/Target page, context or browser has been closed/i.test(msg)) {
-      throw new Error('Page or context closed while waiting for element to be visible');
-    }
-    throw err;
-  }
+export async function assertVisible(target: Locator, options?: { timeout?: number }): Promise<void> {
+  await expect(target).toBeVisible(options);
 }
 
 

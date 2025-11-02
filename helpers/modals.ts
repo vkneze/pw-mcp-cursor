@@ -2,40 +2,33 @@ import type { Page } from '@playwright/test';
 import { COMMON } from '../constants/selectors';
 
 /**
- * Dismiss any visible modal (cart modal, generic modals) by clicking dismiss button or pressing Escape.
- * Waits for modal to be hidden after dismissal.
+ * Dismiss any visible modal by clicking dismiss button or pressing Escape.
  * Gracefully handles cases where modal doesn't exist or is already hidden.
  */
 export async function dismissAnyModalIfVisible(page: Page): Promise<void> {
-  const anyVisibleModal = page.locator(COMMON.ANY_VISIBLE_MODAL);
-  const cartModal = page.locator(COMMON.CART_MODAL);
-  
-  // Check if any modal is visible
-  const isCartModalVisible = await cartModal.isVisible().catch(() => false);
-  const isAnyModalVisible = await anyVisibleModal.isVisible().catch(() => false);
-  
-  if (!isCartModalVisible && !isAnyModalVisible) {
-    return; // No modal to dismiss
-  }
-
-  // Try to find and click dismiss button
+  // Try to click dismiss button (if exists)
   const dismissButton = page
-    .locator('#cartModal, .modal:visible')
+    .locator(COMMON.ANY_VISIBLE_MODAL)
     .getByRole('button', { name: /continue shopping|close/i })
     .first();
   
-  const dismissButtonCount = await dismissButton.count().catch(() => 0);
+  // Try to click the dismiss button within 2 seconds.
+  // If it works, mark it as clicked = true
+  // If it fails for any reason, mark it as clicked = false;
+  // and don’t crash the test.
+  const clicked = await dismissButton.click({ timeout: 2000 }).then(() => true).catch(() => false);
   
-  if (dismissButtonCount > 0) {
-    await dismissButton.click().catch(() => false);
-  } else {
-    // Fallback: press Escape if no dismiss button found
-    await page.keyboard.press('Escape').catch(() => false);
+  if (!clicked) {
+    // Fallback: press Escape key
+    await page.keyboard.press('Escape').catch((err) => {
+      console.warn('[WARN] Failed to press Escape to dismiss modal:', err.message);
+    });
   }
 
-  // Wait for modals to be hidden (fire and forget - don't block if they don't hide)
-  await cartModal.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
-  await anyVisibleModal.waitFor({ state: 'hidden', timeout: 7000 }).catch(() => {});
+  // Wait for modal to hide
+  await page.locator(COMMON.ANY_VISIBLE_MODAL).waitFor({ state: 'hidden', timeout: 3000 }).catch((err) => {
+    console.warn('[WARN] Modal did not hide within timeout (may already be hidden):', err.message);
+  });
 }
 
 
