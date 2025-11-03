@@ -37,8 +37,11 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps ${{ matrix.project }}
 
+    # Tests tagged with @nightly are excluded from CI runs for faster execution.
+    # To include nightly tests: Remove '--grep-invert @nightly' from the command below.
+    # To run nightly tests locally: npx playwright test --grep @nightly
     - name: Run Playwright tests
-      run: npx playwright test --project=${{ matrix.project }}
+      run: npx playwright test --project=${{ matrix.project }} --grep-invert '@nightly'
       continue-on-error: true
       env:
         CI: true
@@ -154,6 +157,14 @@ jobs:
       run: |
         echo "check-allure.has_results = ${{ steps.check-allure.outputs.has_results }}"
         echo "check-report.has_report = ${{ steps.check-report.outputs.has_report }}"
+
+    - name: Upload Allure HTML Report as artifact
+      if: steps.check-report.outputs.has_report == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: allure-report
+        path: allure-history/
+        retention-days: 30
 
     - name: Deploy report to GitHub Pages
       if: steps.check-report.outputs.has_report == 'true'
