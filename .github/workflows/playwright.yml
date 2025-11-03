@@ -158,6 +158,10 @@ jobs:
         echo "check-allure.has_results = ${{ steps.check-allure.outputs.has_results }}"
         echo "check-report.has_report = ${{ steps.check-report.outputs.has_report }}"
 
+    - name: Copy README to report
+      if: steps.check-report.outputs.has_report == 'true'
+      run: cp .github/ALLURE_REPORT_README.md allure-history/HOW_TO_VIEW.md
+
     - name: Upload Allure HTML Report as artifact
       if: steps.check-report.outputs.has_report == 'true'
       uses: actions/upload-artifact@v4
