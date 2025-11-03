@@ -34,7 +34,7 @@ export class ProductsPage extends BasePage {
     this.page = page;
 
     // Header / Navigation
-    this.mainHeader = page.locator('#header');
+    this.mainHeader = page.locator(COMMON.HEADER);
     this.productsHeader = page.getByText('All Products', { exact: false });
 
     // Search with fallbacks

@@ -5,6 +5,7 @@
 
 // Common primitives
 export const COMMON = {
+  HEADER: '#header',
   CART_MODAL: '#cartModal',
   ANY_VISIBLE_MODAL: '#cartModal, .modal:visible',
   PRODUCT_INFORMATION: '.product-information',
@@ -27,6 +28,20 @@ export const SEARCH = {
 export const CART = {
   TABLE: '#cart_info_table',
   DELETE_BUTTONS: '#cart_info_table a.cart_quantity_delete',
+  CHECKOUT_BUTTON_FALLBACK: 'a.check_out',
+  CHECKOUT_LOGIN_MODAL: '#checkoutModal, .modal:has-text("Register / Login"), .modal:has-text("login")',
+  LOGIN_LINK: 'a[href="/login"]',
+};
+
+// Auth / Signup form
+export const AUTH = {
+  TITLE_MR_RADIO: '#id_gender1',
+  TITLE_MR_LABEL: 'label[for="id_gender1"]',
+  DAY_SELECT: '#days',
+  MONTH_SELECT: '#months',
+  YEAR_SELECT: '#years',
+  NEWSLETTER_CHECKBOX: '#newsletter',
+  OFFERS_CHECKBOX: '#optin',
 };
 
 // Left menu / panels
@@ -48,6 +63,7 @@ export const by = {
  */
 export const SELECTORS = {
   // Common
+  HEADER: COMMON.HEADER,
   CART_MODAL: COMMON.CART_MODAL,
   ANY_VISIBLE_MODAL: COMMON.ANY_VISIBLE_MODAL,
   PRODUCT_INFORMATION: COMMON.PRODUCT_INFORMATION,

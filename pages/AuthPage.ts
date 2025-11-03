@@ -1,6 +1,7 @@
 import { Page, Locator, expect } from '@playwright/test';
 import { BasePage, step } from './BasePage';
 import { defaultDateOfBirth } from '../data/auth';
+import { AUTH, COMMON } from '../constants/selectors';
 
 /**
  * Auth page object:
@@ -58,7 +59,7 @@ export class AuthPage extends BasePage {
     this.loginHeader = page.getByText('Login to your account', { exact: false });
     this.signupHeader = page.getByText('New User Signup', { exact: false });
     this.loginOrSignupHeader = page.getByRole('heading', { name: /Login to your account|New User Signup/i }).first();
-    this.header = page.locator('#header');
+    this.header = page.locator(COMMON.HEADER);
 
     // Login form
     this.loginEmailInput = page.locator('[data-qa="login-email"]').or(page.getByLabel(/email/i));
@@ -74,14 +75,14 @@ export class AuthPage extends BasePage {
 
     // Account info
     this.enterInfoHeader = page.getByText('Enter Account Information', { exact: false });
-    this.titleMrRadio = page.locator('#id_gender1');
-    this.titleMrLabel = page.locator('label[for="id_gender1"]').first();
+    this.titleMrRadio = page.locator(AUTH.TITLE_MR_RADIO);
+    this.titleMrLabel = page.locator(AUTH.TITLE_MR_LABEL).first();
     this.accountPasswordInput = page.locator('[data-qa="password"]').or(page.getByLabel(/password/i));
-    this.daySelect = page.locator('#days');
-    this.monthSelect = page.locator('#months');
-    this.yearSelect = page.locator('#years');
-    this.newsletterCheckbox = page.locator('#newsletter');
-    this.offersCheckbox = page.locator('#optin');
+    this.daySelect = page.locator(AUTH.DAY_SELECT);
+    this.monthSelect = page.locator(AUTH.MONTH_SELECT);
+    this.yearSelect = page.locator(AUTH.YEAR_SELECT);
+    this.newsletterCheckbox = page.locator(AUTH.NEWSLETTER_CHECKBOX);
+    this.offersCheckbox = page.locator(AUTH.OFFERS_CHECKBOX);
     this.firstNameInput = page.locator('[data-qa="first_name"]');
     this.lastNameInput = page.locator('[data-qa="last_name"]');
     this.address1Input = page.locator('[data-qa="address"]');

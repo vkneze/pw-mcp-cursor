@@ -71,7 +71,7 @@ export class CartPage extends BasePage {
 
     this.checkoutLink = page.getByRole('link', { name: /proceed to checkout/i });
     this.checkoutButton = page.getByRole('button', { name: /proceed to checkout/i });
-    this.checkoutFallback = page.locator('a.check_out');
+    this.checkoutFallback = page.locator(CART.CHECKOUT_BUTTON_FALLBACK);
 
     this.placeOrderLink = page.getByRole('link', { name: /place order/i });
     this.placeOrderButton = page.getByRole('button', { name: /place order/i });
@@ -86,8 +86,8 @@ export class CartPage extends BasePage {
     // Checkout login requirement
     this.loginRequiredText = page.getByText(/register\s*\/\s*login|login is required|please login|account to proceed/i);
     this.loginOrSignupHeaderText = page.getByText(/login to your account|new user signup/i);
-    this.checkoutLoginModal = page.locator('#checkoutModal, .modal:has-text("Register / Login"), .modal:has-text("login")');
-    this.registerLoginLink = page.locator('a[href="/login"]').or(page.getByRole('link', { name: /register\s*\/\s*login|register|login/i }));
+    this.checkoutLoginModal = page.locator(CART.CHECKOUT_LOGIN_MODAL);
+    this.registerLoginLink = page.locator(CART.LOGIN_LINK).or(page.getByRole('link', { name: /register\s*\/\s*login|register|login/i }));
 
     // Selector constants
     this.deleteButtonSelector = 'a.cart_quantity_delete';

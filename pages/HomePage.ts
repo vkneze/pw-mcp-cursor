@@ -37,7 +37,7 @@ export class HomePage extends BasePage {
     super(page);
     this.page = page;
 
-    this.mainHeader = page.locator('#header');
+    this.mainHeader = page.locator(SELECTORS.HEADER);
     this.subscriptionText = page.getByText('Subscription', { exact: false });
 
     this.productCards = page.locator(SELECTORS.FEATURES_ITEMS_CARD);
@@ -46,7 +46,7 @@ export class HomePage extends BasePage {
 
     this.categoriesText = page.getByText('Category', { exact: false });
     this.brandsText = page.getByText('Brands', { exact: false });
-    this.headerCartLink = this.mainHeader.getByRole('link', { name: /Cart/i });
+    this.headerCartLink = this.mainHeader.getByRole('link', { name: new RegExp(home.links.cart, 'i') });
     this.panelsSelector = SELECTORS.PANELS;
     this.panelTitleLinkSelector = SELECTORS.PANEL_TITLE_LINK;
     this.panelCollapseSelector = SELECTORS.PANEL_COLLAPSE;
@@ -79,7 +79,7 @@ export class HomePage extends BasePage {
   @step("Assert that header contains all expected navigation links")
   async assertHeaderContains(): Promise<void> {
     await assertVisible(this.mainHeader);
-    for (const linkName of home.headerLinks) {
+    for (const linkName of Object.values(home.links)) {
       await assertVisible(
         this.mainHeader.getByRole("link", { name: new RegExp(linkName, "i") })
       );

@@ -39,4 +39,20 @@ export function generateSignupUser(seed?: string | number): SignupUser {
   };
 }
 
+/**
+ * Test data for negative login scenarios.
+ * Used to verify error handling and validation.
+ */
+export const invalidLoginData = {
+  // Valid format but non-existent credentials
+  nonExistentEmail: 'test@example.com',
+  wrongPassword: 'WrongPassword123!',
+  
+  // Invalid format
+  invalidEmailFormat: 'notanemail',
+  
+  // Valid password format (for testing email validation)
+  validPasswordFormat: 'Password123!',
+};
+
 
