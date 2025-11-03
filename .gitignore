@@ -9,6 +9,7 @@ playwright/.cache/
 # Allure reports
 allure-report/
 allure-results/
+allure-history/
 
 # Videos and screenshots from failed tests
 *.webm
