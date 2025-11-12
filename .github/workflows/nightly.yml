@@ -1,9 +1,11 @@
 name: Nightly Tests
 
 on:
-  schedule:
-    # Run every night at 2 AM UTC
-    - cron: '0 2 * * *'
+  # schedule:
+  #   # Run every night at 2 AM UTC
+  #   - cron: '0 2 * * *'
+  # ⚠️ Automatic nightly execution is disabled. Run manually via workflow_dispatch.
+  # To re-enable: Uncomment the schedule section above.
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -24,8 +26,43 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    # 🚀 Cache Playwright browsers to speed up nightly runs
+    - name: Get Playwright version
+      id: playwright-version
+      run: echo "version=$(npm ls @playwright/test --depth=0 --json | jq -r '.dependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-all-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+        restore-keys: |
+          playwright-all-${{ runner.os }}-
+
+    # 📊 Cache status logging
+    - name: Check cache status
+      run: |
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "✅ Cache HIT! All browsers restored from cache."
+          echo "⚡ Saved ~120 seconds of installation time!"
+        else
+          echo "❌ Cache MISS. All browsers will be downloaded."
+          echo "💾 Cache will be created for next run."
+        fi
+        echo "Cache key: playwright-all-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}"
+
     - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      run: |
+        echo "⏳ Installing all browsers (this takes ~120s)..."
+        time npx playwright install --with-deps
+
+    - name: Verify Playwright installation
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: |
+        echo "✅ Using cached browsers, installing system dependencies only (~5s)..."
+        time npx playwright install-deps
 
     - name: Run all tests
       run: npx playwright test --workers=2

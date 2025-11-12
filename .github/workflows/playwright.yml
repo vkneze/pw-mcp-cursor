@@ -1,10 +1,17 @@
 name: Playwright Tests
 
 on:
+  # push:
+  #   branches: [ main, master, develop ]
+  # pull_request:
+  #   branches: [ main, master, develop ]
   push:
-    branches: [ main, master, develop ]
+    branches: 
+      - 'main'
+      - 'feature/**'
+      - 'fix/**'
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ main ]
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
 permissions:
@@ -34,8 +41,91 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    # 🚀 Cache Playwright browsers to speed up CI runs
+    # Browsers are ~300MB each and take 30-60s to install
+    # With cache: First run ~60s, subsequent runs ~5s
+    - name: Get Playwright version
+      id: playwright-version
+      run: echo "version=$(npm ls @playwright/test --depth=0 --json | jq -r '.dependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        # Cache key includes: browser, OS, Playwright version
+        # This allows cross-branch cache sharing (same key = same cache)
+        key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+        restore-keys: |
+          playwright-${{ matrix.project }}-${{ runner.os }}-
+
+    # 📊 Cache status logging with detailed debugging
+    - name: Check cache status
+      run: |
+        echo "🔍 Cache Debug Info:"
+        echo "  Branch: ${{ github.ref_name }}"
+        echo "  Playwright version: ${{ steps.playwright-version.outputs.version }}"
+        echo "  Cache key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}"
+        echo "  Run number: ${{ github.run_number }} (Run 1 = cache miss, Run 2+ = cache hit)"
+        echo ""
+        
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "✅ ✅ ✅ Cache HIT! Browsers restored from cache. ✅ ✅ ✅"
+          echo "⚡ Saved ~60 seconds of installation time!"
+          echo ""
+          echo "📊 Cached browsers:"
+          ls -lah ~/.cache/ms-playwright/ 2>/dev/null | grep -E "chromium|firefox|webkit" || echo "  (checking...)"
+        else
+          echo "❌ Cache MISS. Browsers will be downloaded."
+          echo "💾 Cache will be created for next run on ANY branch."
+          echo ""
+          echo "⚠️  This is normal if:"
+          echo "   - This is your FIRST workflow run"
+          echo "   - Playwright was recently upgraded"
+          echo "   - Cache expired (unused for 7 days)"
+        fi
+
     - name: Install Playwright Browsers
-      run: npx playwright install --with-deps ${{ matrix.project }}
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      run: |
+        echo "⏳ Installing ${{ matrix.project }} browser (this takes ~60s)..."
+        echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+        time npx playwright install --with-deps ${{ matrix.project }}
+        echo "END_TIME=$(date +%s)" >> $GITHUB_ENV
+
+    # Ensure browsers are available even if cache is restored
+    - name: Verify Playwright installation
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: |
+        echo "✅ Using cached browsers, installing system dependencies only (~3s)..."
+        echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+        time npx playwright install-deps ${{ matrix.project }}
+        echo "END_TIME=$(date +%s)" >> $GITHUB_ENV
+
+    # Summary of cache performance
+    - name: Cache Performance Summary
+      if: always()
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🎯 CACHE PERFORMANCE SUMMARY"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "Status: ✅ CACHE WORKING"
+          echo "Browser: ${{ matrix.project }}"
+          echo "Installation: FAST (~3 seconds) ⚡"
+          echo "Time saved: ~57 seconds per browser"
+          echo ""
+          echo "🎉 Caching is working perfectly!"
+        else
+          echo "Status: ⚠️  CACHE NOT USED (YET)"
+          echo "Browser: ${{ matrix.project }}"
+          echo "Installation: SLOW (~60 seconds)"
+          echo ""
+          echo "📝 This is expected on first run."
+          echo "💡 Push another commit to see the speed improvement!"
+        fi
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Tests tagged with @nightly are excluded from CI runs for faster execution.
     # To include nightly tests: Remove '--grep-invert @nightly' from the command below.
@@ -127,13 +217,49 @@ jobs:
       with:
         node-version: 18
 
+    # Download history from GitHub Pages to preserve trends
+    - name: Download Allure history from gh-pages
+      if: steps.check-allure.outputs.has_results == 'true'
+      continue-on-error: true
+      run: |
+        echo "📊 Attempting to download history from gh-pages for trends..."
+        # Try to get history from deployed GitHub Pages
+        if curl -sf https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/history.json > /dev/null 2>&1; then
+          mkdir -p allure-history-backup/history
+          cd allure-history-backup/history
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/history.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/history-trend.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/duration-trend.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/retry-trend.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/categories-trend.json || true
+          cd ../..
+          echo "✅ History downloaded successfully"
+        else
+          echo "⚠️  No previous history found (first run or gh-pages not enabled)"
+        fi
+
     - name: Generate Allure Report
       if: steps.check-allure.outputs.has_results == 'true'
       run: |
         npm install -g allure-commandline
+        
+        # Copy history if it exists
+        if [ -d "allure-history-backup/history" ]; then
+          echo "📊 Restoring history for trends..."
+          mkdir -p allure-results/history
+          cp -r allure-history-backup/history/* allure-results/history/ 2>/dev/null || true
+        fi
+        
         allure generate allure-results --clean -o allure-history
-        echo "✅ Allure report generated"
-        ls -la allure-history/ | head -10
+        echo "✅ Allure report generated with history"
+        
+        # Verify history was included
+        if [ -d "allure-history/history" ]; then
+          echo "✅ Trends available (history preserved)"
+          ls -la allure-history/history/ | head -5
+        else
+          echo "⚠️  No trends yet (first run)"
+        fi
 
     - name: Check if report was generated
       if: steps.check-allure.outputs.has_results == 'true'
@@ -158,9 +284,11 @@ jobs:
         echo "check-allure.has_results = ${{ steps.check-allure.outputs.has_results }}"
         echo "check-report.has_report = ${{ steps.check-report.outputs.has_report }}"
 
-    - name: Copy README to report
+    - name: Copy instructions to report
       if: steps.check-report.outputs.has_report == 'true'
-      run: cp .github/ALLURE_REPORT_README.md allure-history/HOW_TO_VIEW.md
+      run: |
+        cp .github/ALLURE_REPORT_README.md allure-history/HOW_TO_VIEW.md
+        echo "✅ Added viewing instructions to report artifact"
 
     - name: Upload Allure HTML Report as artifact
       if: steps.check-report.outputs.has_report == 'true'
