@@ -1,0 +1,5 @@
+STEP: Open the signup page
+STEP: Create new user account
+STEP: Continue after account created
+STEP: Assert cart is empty
+STEP: Delete current account

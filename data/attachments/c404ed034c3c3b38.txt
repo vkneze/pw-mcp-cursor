@@ -1,0 +1,58 @@
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Timeout 1000ms exceeded.
+Call log:
+  - waiting for locator('[data-qa="name-on-card"]') to be visible
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Timeout 1000ms exceeded.
+Call log:
+  - waiting for locator('[data-qa="card-number"]') to be visible
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Timeout 1000ms exceeded.
+Call log:
+  - waiting for locator('[data-qa="pay-button"]') to be visible
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    3 × locator resolved to hidden <b>Cart is empty!</b>
+    - waiting for" https://automationexercise.com/checkout" navigation to finish...
+    - navigated to "https://automationexercise.com/checkout"
+    - waiting for" https://automationexercise.com/payment" navigation to finish...
+    - navigated to "https://automationexercise.com/payment_done/900"
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+    - waiting for" https://automationexercise.com/" navigation to finish...
+    - navigated to "https://automationexercise.com/"
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    3 × locator resolved to hidden <b>Cart is empty!</b>
+    - waiting for" https://automationexercise.com/checkout" navigation to finish...
+    - navigated to "https://automationexercise.com/checkout"
+    - waiting for" https://automationexercise.com/payment" navigation to finish...
+    - navigated to "https://automationexercise.com/payment_done/900"
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+    - waiting for" https://automationexercise.com/" navigation to finish...
+    - navigated to "https://automationexercise.com/"
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/login to your account|new user signup/i) to be visible
+    - waiting for" https://automationexercise.com/payment" navigation to finish...
+    - navigated to "https://automationexercise.com/payment_done/900"
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+    - waiting for" https://automationexercise.com/" navigation to finish...
+    - navigated to "https://automationexercise.com/"
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for locator('#checkoutModal, .modal:has-text("Register / Login"), .modal:has-text("login")') to be visible
+    - waiting for" https://automationexercise.com/payment" navigation to finish...
+    - navigated to "https://automationexercise.com/payment_done/900"
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+    - waiting for" https://automationexercise.com/" navigation to finish...
+    - navigated to "https://automationexercise.com/"
+

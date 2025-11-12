@@ -1,0 +1,31 @@
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Timeout 8000ms exceeded.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    20 × locator resolved to hidden <b>Cart is empty!</b>
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Timeout 8000ms exceeded.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    21 × locator resolved to hidden <b>Cart is empty!</b>
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Timeout 8000ms exceeded.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    21 × locator resolved to hidden <b>Cart is empty!</b>
+
+[WARN] safeWaitFor failed for state "detached": locator.waitFor: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator('#cart_info_table tbody tr:has(td.cart_description :is(h4 a, a, p))').first() to be detached
+    3 × locator resolved to visible <tr id="product-1">…</tr>
+    22 × locator resolved to visible <tr id="product-2">…</tr>
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    3 × locator resolved to hidden <b>Cart is empty!</b>
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    3 × locator resolved to hidden <b>Cart is empty!</b>
+

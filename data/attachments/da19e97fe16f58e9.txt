@@ -1,0 +1,20 @@
+STEP: Open the AutomationExercise home page
+STEP: Open the signup page
+STEP: Create new user account
+STEP: Continue after account created
+STEP: Add 2 products from each brand: Polo, H&M
+STEP: Validate the home page has loaded
+STEP: Add first 2 products for brand "Polo"
+STEP: Filter products by brand from the left menu
+STEP: Assert that at least one product card is visible in the product grid
+STEP: Add first N products to cart
+STEP: Add first 2 products for brand "H&M"
+STEP: Filter products by brand from the left menu
+STEP: Assert that at least one product card is visible in the product grid
+STEP: Add first N products to cart
+STEP: Open cart from header
+STEP: Wait for cart view to be ready
+STEP: Get cart items count
+STEP: Proceed to checkout from cart
+STEP: Place order with payment details
+STEP: Delete current account

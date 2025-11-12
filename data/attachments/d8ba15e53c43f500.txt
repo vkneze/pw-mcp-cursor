@@ -1,0 +1,6 @@
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for locator('#cart_info_table') to be visible
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+

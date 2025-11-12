@@ -1,0 +1,20 @@
+[WARN] safeScrollIntoView failed (element might not be scrollable or detached): locator.scrollIntoViewIfNeeded: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.panel-title a').filter({ hasText: /brands/i }).first()
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for locator('#cart_info_table') to be visible
+    4 × locator resolved to hidden <table id="cart_info_table" class="table table-condensed">…</table>
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for locator('#cart_info_table') to be visible
+    3 × locator resolved to hidden <table id="cart_info_table" class="table table-condensed">…</table>
+    - waiting for" https://automationexercise.com/delete_account" navigation to finish...
+    - navigated to "https://automationexercise.com/delete_account"
+    - waiting for" https://automationexercise.com/" navigation to finish...
+    - navigated to "https://automationexercise.com/"
+

@@ -1,0 +1,2 @@
+STEP: Open the AutomationExercise home page
+STEP: Validate the home page has loaded

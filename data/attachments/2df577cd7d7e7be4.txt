@@ -1,0 +1,8 @@
+[WARN] safeScrollIntoView failed (element might not be scrollable or detached): locator.scrollIntoViewIfNeeded: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.panel-title a').filter({ hasText: /brands/i }).first()
+
+[WARN] safeScrollIntoView failed (element might not be scrollable or detached): locator.scrollIntoViewIfNeeded: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.panel-title a').filter({ hasText: /brands/i }).first()
+

@@ -1,0 +1,10 @@
+STEP: Open the signup page
+STEP: Create new user account
+STEP: Continue after account created
+STEP: Open the AutomationExercise products page
+STEP: Add first N products to cart from products grid
+STEP: Wait for cart view to be ready
+STEP: Get cart items count
+STEP: Proceed to checkout from cart
+STEP: Place order with payment details
+STEP: Delete current account

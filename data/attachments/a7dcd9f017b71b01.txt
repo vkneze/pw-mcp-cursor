@@ -1,0 +1,13 @@
+STEP: Open the AutomationExercise home page
+STEP: Add first 2 products for brand "Polo"
+STEP: Filter products by brand from the left menu
+STEP: Assert that at least one product card is visible in the product grid
+STEP: Add first N products to cart
+STEP: Get cart items count
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+STEP: Proceed to checkout from cart
+STEP: Assert checkout prompts for login
+STEP: Get cart items count
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation

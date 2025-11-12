@@ -1,0 +1,12 @@
+STEP: Open the signup page
+STEP: Create new user account
+STEP: Continue after account created
+STEP: Open the AutomationExercise home page
+STEP: Add first 1 products for brand "Polo"
+STEP: Filter products by brand from the left menu
+STEP: Assert that at least one product card is visible in the product grid
+STEP: Add first N products to cart
+STEP: Remove all items from cart
+STEP: Remove first item from cart
+STEP: Assert cart is empty
+STEP: Delete current account

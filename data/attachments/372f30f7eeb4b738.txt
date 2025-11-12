@@ -1,0 +1,22 @@
+STEP: Open the signup page
+STEP: Create new user account
+STEP: Continue after account created
+STEP: Open the AutomationExercise products page
+STEP: Execute a search using the products search box
+STEP: Dismiss cart modal if visible
+STEP: Dismiss cart modal if visible
+STEP: Assert that search results include only products whose names match the expected product name
+STEP: Add first N products to cart from products grid
+STEP: Execute a search using the products search box
+STEP: Dismiss cart modal if visible
+STEP: Dismiss cart modal if visible
+STEP: Assert that search results include only products whose names match the expected product name
+STEP: Add first N products to cart from products grid
+STEP: Wait for cart view to be ready
+STEP: Wait until cart has exactly 2 items
+STEP: Assert products in cart
+STEP: Remove all items from cart
+STEP: Remove first item from cart
+STEP: Remove first item from cart
+STEP: Assert cart is empty
+STEP: Delete current account

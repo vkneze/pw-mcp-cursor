@@ -1,0 +1,40 @@
+[WARN] safeScrollIntoView failed (element might not be scrollable or detached): locator.scrollIntoViewIfNeeded: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.panel-title a').filter({ hasText: /brands/i }).first()
+
+[WARN] safeScrollIntoView failed (element might not be scrollable or detached): locator.scrollIntoViewIfNeeded: Timeout 20000ms exceeded.
+Call log:
+  - waiting for locator('.panel-title a').filter({ hasText: /brands/i }).first()
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Error: strict mode violation: locator('a[href="/login"]').or(getByRole('link', { name: /register\s*\/\s*login|register|login/i })) resolved to 2 elements:
+    1) <a href="/login">…</a> aka getByRole('link', { name: ' Signup / Login' })
+    2) <a href="/login">…</a> aka getByRole('link', { name: 'Register / Login' })
+
+Call log:
+  - waiting for locator('a[href="/login"]').or(getByRole('link', { name: /register\s*\/\s*login|register|login/i })) to be visible
+
+[WARN] safeIsVisible failed (element not visible or page closed): locator.isVisible: Error: strict mode violation: getByText(/register\s*\/\s*login|login is required|please login|account to proceed/i) resolved to 2 elements:
+    1) <p class="text-center">Register / Login account to proceed on checkout.</p> aka getByText('Register / Login account to')
+    2) <u>Register / Login</u> aka getByRole('link', { name: 'Register / Login' })
+
+Call log:
+    - checking visibility of getByText(/register\s*\/\s*login|login is required|please login|account to proceed/i)
+
+[WARN] safeWaitForURL timeout or navigation failure: page.waitForURL: Test ended.
+=========================== logs ===========================
+waiting for navigation until "load"
+============================================================
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    7 × locator resolved to hidden <b>Cart is empty!</b>
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/Cart is empty!/i) to be visible
+    7 × locator resolved to hidden <b>Cart is empty!</b>
+
+[WARN] safeWaitFor failed for state "visible": locator.waitFor: Test ended.
+Call log:
+  - waiting for getByText(/login to your account|new user signup/i) to be visible
+

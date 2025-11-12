@@ -1,0 +1,3 @@
+STEP: Open the AutomationExercise home page
+STEP: Open a category from the left menu. Optionally click a subcategory.
+STEP: Assert that at least one product card is visible in the product grid

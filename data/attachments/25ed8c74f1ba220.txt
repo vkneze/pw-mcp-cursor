@@ -1,0 +1,9 @@
+STEP: Open the signup page
+STEP: Create new user account
+STEP: Continue after account created
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+STEP: Assert cart is empty
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+[INFO] Could not inject ad-blocking styles: page.addStyleTag: Execution context was destroyed, most likely because of a navigation
+STEP: Delete current account

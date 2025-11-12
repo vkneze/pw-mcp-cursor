@@ -1,0 +1,13 @@
+STEP: Open the AutomationExercise products page
+STEP: Execute a search using the products search box
+STEP: Dismiss cart modal if visible
+STEP: Dismiss cart modal if visible
+STEP: Assert that search results include only products whose names match the expected product name
+STEP: Execute a search using the products search box
+STEP: Dismiss cart modal if visible
+STEP: Dismiss cart modal if visible
+STEP: Assert that search results include only products whose names match the expected product name
+STEP: Execute a search using the products search box
+STEP: Dismiss cart modal if visible
+STEP: Dismiss cart modal if visible
+STEP: Assert that search results include only products whose names match the expected product name
