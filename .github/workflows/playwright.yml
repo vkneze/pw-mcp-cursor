@@ -217,13 +217,49 @@ jobs:
       with:
         node-version: 18
 
+    # Download history from GitHub Pages to preserve trends
+    - name: Download Allure history from gh-pages
+      if: steps.check-allure.outputs.has_results == 'true'
+      continue-on-error: true
+      run: |
+        echo "📊 Attempting to download history from gh-pages for trends..."
+        # Try to get history from deployed GitHub Pages
+        if curl -sf https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/history.json > /dev/null 2>&1; then
+          mkdir -p allure-history-backup/history
+          cd allure-history-backup/history
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/history.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/history-trend.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/duration-trend.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/retry-trend.json || true
+          curl -sLO https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/categories-trend.json || true
+          cd ../..
+          echo "✅ History downloaded successfully"
+        else
+          echo "⚠️  No previous history found (first run or gh-pages not enabled)"
+        fi
+
     - name: Generate Allure Report
       if: steps.check-allure.outputs.has_results == 'true'
       run: |
         npm install -g allure-commandline
+        
+        # Copy history if it exists
+        if [ -d "allure-history-backup/history" ]; then
+          echo "📊 Restoring history for trends..."
+          mkdir -p allure-results/history
+          cp -r allure-history-backup/history/* allure-results/history/ 2>/dev/null || true
+        fi
+        
         allure generate allure-results --clean -o allure-history
-        echo "✅ Allure report generated"
-        ls -la allure-history/ | head -10
+        echo "✅ Allure report generated with history"
+        
+        # Verify history was included
+        if [ -d "allure-history/history" ]; then
+          echo "✅ Trends available (history preserved)"
+          ls -la allure-history/history/ | head -5
+        else
+          echo "⚠️  No trends yet (first run)"
+        fi
 
     - name: Check if report was generated
       if: steps.check-allure.outputs.has_results == 'true'
