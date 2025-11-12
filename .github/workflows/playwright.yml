@@ -53,34 +53,79 @@ jobs:
       id: playwright-cache
       with:
         path: ~/.cache/ms-playwright
+        # Cache key includes: browser, OS, Playwright version
+        # This allows cross-branch cache sharing (same key = same cache)
         key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
         restore-keys: |
           playwright-${{ matrix.project }}-${{ runner.os }}-
 
-    # 📊 Cache status logging
+    # 📊 Cache status logging with detailed debugging
     - name: Check cache status
       run: |
+        echo "🔍 Cache Debug Info:"
+        echo "  Branch: ${{ github.ref_name }}"
+        echo "  Playwright version: ${{ steps.playwright-version.outputs.version }}"
+        echo "  Cache key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}"
+        echo "  Run number: ${{ github.run_number }} (Run 1 = cache miss, Run 2+ = cache hit)"
+        echo ""
+        
         if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
-          echo "✅ Cache HIT! Browsers restored from cache."
+          echo "✅ ✅ ✅ Cache HIT! Browsers restored from cache. ✅ ✅ ✅"
           echo "⚡ Saved ~60 seconds of installation time!"
+          echo ""
+          echo "📊 Cached browsers:"
+          ls -lah ~/.cache/ms-playwright/ 2>/dev/null | grep -E "chromium|firefox|webkit" || echo "  (checking...)"
         else
           echo "❌ Cache MISS. Browsers will be downloaded."
-          echo "💾 Cache will be created for next run."
+          echo "💾 Cache will be created for next run on ANY branch."
+          echo ""
+          echo "⚠️  This is normal if:"
+          echo "   - This is your FIRST workflow run"
+          echo "   - Playwright was recently upgraded"
+          echo "   - Cache expired (unused for 7 days)"
         fi
-        echo "Cache key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}"
 
     - name: Install Playwright Browsers
       if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: |
         echo "⏳ Installing ${{ matrix.project }} browser (this takes ~60s)..."
+        echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
         time npx playwright install --with-deps ${{ matrix.project }}
+        echo "END_TIME=$(date +%s)" >> $GITHUB_ENV
 
     # Ensure browsers are available even if cache is restored
     - name: Verify Playwright installation
       if: steps.playwright-cache.outputs.cache-hit == 'true'
       run: |
         echo "✅ Using cached browsers, installing system dependencies only (~3s)..."
+        echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
         time npx playwright install-deps ${{ matrix.project }}
+        echo "END_TIME=$(date +%s)" >> $GITHUB_ENV
+
+    # Summary of cache performance
+    - name: Cache Performance Summary
+      if: always()
+      run: |
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🎯 CACHE PERFORMANCE SUMMARY"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "Status: ✅ CACHE WORKING"
+          echo "Browser: ${{ matrix.project }}"
+          echo "Installation: FAST (~3 seconds) ⚡"
+          echo "Time saved: ~57 seconds per browser"
+          echo ""
+          echo "🎉 Caching is working perfectly!"
+        else
+          echo "Status: ⚠️  CACHE NOT USED (YET)"
+          echo "Browser: ${{ matrix.project }}"
+          echo "Installation: SLOW (~60 seconds)"
+          echo ""
+          echo "📝 This is expected on first run."
+          echo "💡 Push another commit to see the speed improvement!"
+        fi
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Tests tagged with @nightly are excluded from CI runs for faster execution.
     # To include nightly tests: Remove '--grep-invert @nightly' from the command below.
