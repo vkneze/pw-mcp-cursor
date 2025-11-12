@@ -64,41 +64,25 @@ npx playwright show-report
 
 ### Allure Report
 
-```bash
-# Generate and open (auto-starts server)
-npm run allure:serve
+**🌐 Recommended: View on GitHub Pages**
 
-# OR generate then open manually
-npm run allure:generate
-npm run allure:open
+Reports are automatically deployed after each CI run:
+- **URL:** `https://<username>.github.io/<repo>/`
+- **Setup:** Repo Settings → Pages → Source: **gh-pages** branch
+- **Benefits:** Always up-to-date, includes trends, no local setup
 
-# Clean old reports
-npm run allure:clean
-```
-
-### 🚨 **Viewing Downloaded Allure Reports from GitHub**
-
-**DON'T** open `index.html` directly - it will show "Loading..." forever.
-
-**DO** serve via HTTP:
+**Local Generation:**
 
 ```bash
-# Navigate to extracted folder
-cd allure-report
-
-# Start server (choose one):
-npx -y serve -p 8080 .           # Recommended
-python3 -m http.server 8080      # Alternative
-php -S localhost:8080            # Alternative
-
-# Open: http://localhost:8080
+npm run allure:serve              # Generate and open (auto-starts server)
+npm run allure:generate           # Generate only
+npm run allure:open               # Open existing report
+npm run allure:clean              # Clean old reports
 ```
 
-**Why?** Allure uses AJAX to load data. Browsers block `file://` requests (CORS).
+**📊 Trends:** Run tests 2-3+ times to see trend graphs (duration, retries, history).
 
-**Better option:** View on GitHub Pages (auto-deployed):
-- Enable: **Repo Settings** → **Pages** → **gh-pages** branch
-- URL: `https://<username>.github.io/<repo>/`
+> **Note:** If downloading artifacts from GitHub Actions, don't open `index.html` directly. Serve via HTTP: `cd allure-report && npx -y serve -p 8080 .` → http://localhost:8080
 
 ## 🔄 GitHub Actions
 
@@ -119,7 +103,11 @@ Tests run automatically on:
 ├── data/               # Test data
 ├── constants/          # Selectors, configs
 ├── fixtures/           # Custom fixtures
-└── .github/workflows/  # CI/CD
+├── .cursor/            # Cursor AI rules & commands
+│   ├── rules/          # Workspace rules
+│   └── commands/       # Custom commands
+└── .github/            # GitHub configuration
+    └── workflows/      # CI/CD workflows
 ```
 
 ## 📝 Writing Tests
