@@ -34,8 +34,46 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    # 🚀 Cache Playwright browsers to speed up CI runs
+    # Browsers are ~300MB each and take 30-60s to install
+    # With cache: First run ~60s, subsequent runs ~5s
+    - name: Get Playwright version
+      id: playwright-version
+      run: echo "version=$(npm ls @playwright/test --depth=0 --json | jq -r '.dependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+        restore-keys: |
+          playwright-${{ matrix.project }}-${{ runner.os }}-
+
+    # 📊 Cache status logging
+    - name: Check cache status
+      run: |
+        if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+          echo "✅ Cache HIT! Browsers restored from cache."
+          echo "⚡ Saved ~60 seconds of installation time!"
+        else
+          echo "❌ Cache MISS. Browsers will be downloaded."
+          echo "💾 Cache will be created for next run."
+        fi
+        echo "Cache key: playwright-${{ matrix.project }}-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}"
+
     - name: Install Playwright Browsers
-      run: npx playwright install --with-deps ${{ matrix.project }}
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      run: |
+        echo "⏳ Installing ${{ matrix.project }} browser (this takes ~60s)..."
+        time npx playwright install --with-deps ${{ matrix.project }}
+
+    # Ensure browsers are available even if cache is restored
+    - name: Verify Playwright installation
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: |
+        echo "✅ Using cached browsers, installing system dependencies only (~3s)..."
+        time npx playwright install-deps ${{ matrix.project }}
 
     # Tests tagged with @nightly are excluded from CI runs for faster execution.
     # To include nightly tests: Remove '--grep-invert @nightly' from the command below.
